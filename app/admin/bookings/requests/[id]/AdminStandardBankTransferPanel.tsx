@@ -5,6 +5,8 @@ import { adminConfirmStandardBankTransfer, adminRejectStandardBankTransfer } fro
 import DocumentViewerModal from "@/components/ui/DocumentViewerModal"
 import type { DocumentFile } from "@/components/ui/DocumentViewerModal"
 import { LoadingButtonContent } from '@/components/ui/Spinner'
+import type { FlightDetailsData } from './flight-details-types'
+import { AdminViewFlightDetailsButton } from './AdminFlightDetailsModal'
 
 type Submission = {
   id: string
@@ -20,9 +22,10 @@ type Submission = {
 type Props = {
   bookingId: string
   submissions: Submission[]
+  flightDetails?: FlightDetailsData | null
 }
 
-export default function AdminStandardBankTransferPanel({ bookingId, submissions }: Props) {
+export default function AdminStandardBankTransferPanel({ bookingId, submissions, flightDetails }: Props) {
   const [loading, setLoading]       = useState<string | null>(null)
   const [rejectingId, setRejectingId] = useState<string | null>(null)
   const [rejectNote, setRejectNote] = useState("")
@@ -64,7 +67,7 @@ export default function AdminStandardBankTransferPanel({ bookingId, submissions 
       id="standard-bank-transfer-review"
       className="rounded-2xl border border-[#e2e8f0] bg-white p-5 shadow-[0_12px_28px_rgba(15,30,52,0.06)] sm:p-6"
     >
-      <div className="mb-4 flex items-center gap-3 rounded-xl border border-[#f5e6b3] bg-[#fffaf0] px-4 py-3">
+      <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-[#f5e6b3] bg-[#fffaf0] px-4 py-3">
         <span
           className="material-symbols-outlined text-[18px] text-[#d97706]"
           style={{ fontVariationSettings: "'FILL' 1" }}
@@ -74,11 +77,13 @@ export default function AdminStandardBankTransferPanel({ bookingId, submissions 
         <h2 className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#0f2747]">
           Bank Transfer Proof
         </h2>
-        {submissions.some(s => s.status === "pending_review") && (
-          <span className="ml-auto rounded-full border border-[#f0b429] bg-[#fff7db] px-3 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-[#7a4100]">
-            Pending Review
-          </span>
-        )}
+        <div className="ml-auto flex flex-wrap items-center gap-2">
+          {submissions.some(s => s.status === "pending_review") && (
+            <span className="rounded-full border border-[#f0b429] bg-[#fff7db] px-3 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-[#7a4100]">
+              Pending Review
+            </span>
+          )}
+        </div>
       </div>
 
       <div className="space-y-4 border-l-4 border-[#d97706] pl-4 sm:pl-5">
@@ -122,25 +127,37 @@ export default function AdminStandardBankTransferPanel({ bookingId, submissions 
             </div>
           </div>
 
-          {sub.signedReceiptUrl ? (
-            <div className="space-y-2">
-              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#64748b]">Receipt</p>
-              <button
-                type="button"
-                onClick={() => {
-                  setViewerFiles([{ url: sub.signedReceiptUrl!, name: "Bank Transfer Receipt" }])
-                  setViewerTitle("Bank Transfer Receipt")
-                  setViewerOpen(true)
-                }}
-                className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[#bfdbfe] bg-[#f8fbff] px-3.5 py-2 text-sm font-semibold text-[#1d4ed8] transition-colors hover:border-[#93c5fd] hover:bg-[#eff6ff] hover:text-[#1e40af] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1a4fd6]/30 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
-              >
-                <span className="material-symbols-outlined text-[14px]">open_in_new</span>
-                View Receipt
-              </button>
+          <div className="space-y-2">
+            <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#64748b]">Receipt & Flight Details</p>
+            <div className="flex flex-wrap items-center gap-2.5">
+              {sub.signedReceiptUrl ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setViewerFiles([{ url: sub.signedReceiptUrl!, name: "Bank Transfer Receipt" }])
+                    setViewerTitle("Bank Transfer Receipt")
+                    setViewerOpen(true)
+                  }}
+                  className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[#bfdbfe] bg-[#f8fbff] px-3.5 py-2 text-sm font-semibold text-[#1d4ed8] transition-colors hover:border-[#93c5fd] hover:bg-[#eff6ff] hover:text-[#1e40af] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1a4fd6]/30 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
+                >
+                  <span className="material-symbols-outlined text-[14px]">open_in_new</span>
+                  View Receipt
+                </button>
+              ) : (
+                <p className="text-sm text-[#475569]">Receipt URL unavailable</p>
+              )}
+              {flightDetails && (
+                <AdminViewFlightDetailsButton
+                  data={{
+                    ...flightDetails,
+                    receiptUrl: sub.signedReceiptUrl || flightDetails.receiptUrl,
+                  }}
+                  label="View Flight Details"
+                  variant="inline"
+                />
+              )}
             </div>
-          ) : (
-            <p className="text-sm text-[#475569]">Receipt URL unavailable</p>
-          )}
+          </div>
 
           {sub.status === "rejected" && sub.admin_note && (
             <div className="border-t border-[#fecaca] pt-3">

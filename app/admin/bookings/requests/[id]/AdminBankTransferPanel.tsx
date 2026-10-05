@@ -98,7 +98,7 @@ export default function AdminBankTransferPanel({
         isOverride ? "bg-amber-50 border-amber-300" : "bg-white border-[#152d5a]/10"
       }`}
     >
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <span
           className={`material-symbols-outlined text-[18px] ${isOverride ? "text-amber-600" : "text-[#1a4fd6]"}`}
           style={{ fontVariationSettings: "'FILL' 1" }}
@@ -108,9 +108,11 @@ export default function AdminBankTransferPanel({
         <h2 className={`text-[11px] uppercase tracking-widest font-bold ${isOverride ? "text-amber-700" : "text-[#4b6390]"}`}>
           {isOverride ? overrideTitle : "Manual Payment"}
         </h2>
-        <span className="ml-auto px-2.5 py-1 rounded text-[10px] font-bold uppercase tracking-wider bg-blue-500/10 text-[#1a4fd6] border border-blue-500/20">
-          {bookingType === "checkout" ? "Checkout" : "Standard"}
-        </span>
+        <div className="ml-auto flex items-center gap-2">
+          <span className="px-2.5 py-1 rounded text-[10px] font-bold uppercase tracking-wider bg-blue-500/10 text-[#1a4fd6] border border-blue-500/20">
+            {bookingType === "checkout" ? "Checkout" : "Standard"}
+          </span>
+        </div>
       </div>
       {isOverride && (
         <p className="text-[14px] text-amber-800 -mt-2">
@@ -141,7 +143,9 @@ export default function AdminBankTransferPanel({
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <label className="block">
-          <span className="text-[12px] uppercase tracking-widest font-semibold text-[#4b6390] block mb-2">Amount</span>
+          <span className="text-[12px] uppercase tracking-widest font-semibold text-[#4b6390] block mb-2">
+            Amount
+          </span>
           <input
             type="number"
             min="0.01"

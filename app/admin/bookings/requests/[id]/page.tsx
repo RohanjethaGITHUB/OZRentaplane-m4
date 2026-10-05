@@ -35,6 +35,8 @@ import { getAircraftFlightLogStartSuggestions } from '@/lib/aircraft-flight-log'
 import { deriveBookingStatusForFlightRecord } from '@/lib/booking/flight-record-status'
 import { PAYF_RATE_PER_HOUR, CHECKOUT_RATE_PER_HOUR } from '@/lib/pricing-constants'
 import { isSameSydneyCalendarDay } from '@/lib/utils/sydney-time'
+import { buildFlightDetailsData } from './flight-details-builder'
+import { AdminViewFlightDetailsButton } from './AdminFlightDetailsModal'
 
 export const metadata = { title: 'Booking Details | Admin' }
 
@@ -377,6 +379,9 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
     { data: aircraftLogsRaw },
     { data: clearanceOverrideAuditRows },
     { data: settlementLedgerRow },
+    { data: bookingFlightLogRow },
+    { data: standardLandingChargesRows },
+    { data: checkoutLandingChargesRows },
   ] = await Promise.all([
     supabase
       .from('profiles')
@@ -414,10 +419,8 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
       .eq('user_id', booking.booking_owner_user_id)
       .order('created_at', { ascending: false })
       .limit(50),
-    // Active airports — fetched for checkout outcome form AND standard billing panel
-    needsAirportsAndCredit
-      ? supabase.from('airports').select('id, icao_code, name, default_landing_fee_cents').eq('is_active', true).order('name')
-      : Promise.resolve({ data: null, error: null }),
+    // Active airports
+    supabase.from('airports').select('id, icao_code, name, default_landing_fee_cents').eq('is_active', true).order('name'),
     // Customer credit balance — fetched for checkout outcome form AND standard billing panel
     needsAirportsAndCredit
       ? supabase.from('customer_credit_balances').select('balance_cents').eq('customer_id', booking.booking_owner_user_id).maybeSingle()
@@ -437,7 +440,7 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
     bookingType === 'standard'
       ? supabase
           .from('booking_invoices')
-          .select('status, rate_cents_per_hour, vdo_reading, base_amount_cents, landing_subtotal_cents, subtotal_cents, stripe_amount_due_cents, total_paid_cents, payment_method, paid_at, pdf_url')
+          .select('id, invoice_number, status, rate_cents_per_hour, vdo_reading, base_amount_cents, landing_subtotal_cents, subtotal_cents, advance_applied_cents, stripe_amount_due_cents, total_paid_cents, payment_method, paid_at, pdf_url')
           .eq('booking_id', booking.id)
           .maybeSingle()
       : Promise.resolve({ data: null, error: null }),
@@ -450,11 +453,11 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
           .eq('type', 'flight')
           .order('created_at', { ascending: true })
       : Promise.resolve({ data: null, error: null }),
-    // Flight record — fetched for standard billing panel (include per-airport landings)
-    isStandardBillingPending
+    // Flight record — fetched for standard bookings whenever submitted
+    bookingType === 'standard'
       ? supabase
           .from('flight_records')
-          .select('*, flight_record_landings(airport_id, landing_count)')
+          .select('*, flight_record_landings(airport_id, landing_count, airports(id, icao_code, name, default_landing_fee_cents))')
           .eq('booking_id', booking.id)
           .order('submitted_at', { ascending: false })
           .limit(1)
@@ -491,6 +494,30 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle(),
+    // Linked aircraft flight log for this booking
+    supabase
+      .from('aircraft_flight_logs')
+      .select('flight_date, vdo_start, vdo_stop, vdo_total, air_switch_start, air_switch_stop, air_switch_total, tacho_start, tacho_stop, tacho_total, mr_start, mr_stop, mr_total, landings, notes, source, review_status')
+      .eq('related_booking_id', booking.id)
+      .order('flight_date', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    // Standard landing charges
+    bookingType === 'standard'
+      ? supabase
+          .from('booking_landing_charges')
+          .select('landing_count, unit_amount_cents, total_amount_cents, airports(id, icao_code, name, default_landing_fee_cents)')
+          .eq('booking_id', booking.id)
+          .order('created_at', { ascending: true })
+      : Promise.resolve({ data: null, error: null }),
+    // Checkout landing charges
+    bookingType === 'checkout'
+      ? supabase
+          .from('checkout_landing_charges')
+          .select('landing_count, unit_amount_cents, total_amount_cents, airports(id, icao_code, name, default_landing_fee_cents)')
+          .eq('booking_id', booking.id)
+          .order('created_at', { ascending: true })
+      : Promise.resolve({ data: null, error: null }),
   ])
 
   type FlightEvidenceAttachment = {
@@ -647,12 +674,21 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
       .from('checkout_invoices')
       .select(`
         id,
+        invoice_number,
         stripe_amount_due_cents,
         checkout_rate_cents_per_hour,
         checkout_duration_hours,
+        checkout_calculated_amount_cents,
+        checkout_landing_subtotal_cents,
         checkout_final_amount_cents,
+        advance_applied_cents,
         total_paid_cents,
         status,
+        vdo_reading,
+        vdo_start_reading,
+        vdo_end_reading,
+        payment_method,
+        waiver_reason,
         paid_at
       `)
       .eq('booking_id', booking.id)
@@ -1103,6 +1139,38 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
     : clearanceCfgBase
   const bookingRef    = (booking as { booking_reference?: string }).booking_reference
     ?? booking.id.split('-')[0].toUpperCase()
+
+  const flightDetailsData = buildFlightDetailsData({
+    booking: {
+      id: booking.id,
+      booking_reference: bookingRef,
+      booking_type: bookingType,
+      scheduled_start: booking.scheduled_start,
+      scheduled_end: booking.scheduled_end,
+    },
+    customer: customer as any,
+    aircraft: aircraft as any,
+    flightRecord: flightRecordRow,
+    bookingFlightLog: bookingFlightLogRow,
+    standardInvoice: standardBookingInvoiceRow,
+    blockTimeInvoices: blockTimeInvoiceRows as any[],
+    checkoutInvoice: checkoutInvoice as any,
+    standardLandings: standardLandingChargesRows as any[],
+    checkoutLandings: checkoutLandingChargesRows as any[],
+    evidenceAttachments,
+    airports: (airportRows as any[]) ?? undefined,
+    timeRangeLabel: bookingSchedule.timeRange,
+    receiptUrl:
+      standardPendingReviewSubmissions[0]?.signedReceiptUrl ||
+      latestBankTransferSub?.signedReceiptUrl ||
+      standardBankTransferSubmissions[0]?.signedReceiptUrl ||
+      null,
+    hasPendingBankTransferReview:
+      standardPendingReviewSubmissions.length > 0 ||
+      (bookingType === 'checkout' && latestBankTransferSub?.status === 'pending_review') ||
+      standardBookingInvoiceRow?.status === 'bank_transfer_pending_review' ||
+      checkoutInvoice?.status === 'bank_transfer_pending_review',
+  })
   const statusHistory = rawHistory ?? []
   const checkoutSteps = [
     { key: 'checkout_requested',              label: 'Checkout\nRequested', color: '#90a4ae' },
@@ -1696,6 +1764,13 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
               </div>
 
               <div className="flex flex-wrap items-center gap-2.5 md:ml-4 md:flex-shrink-0">
+                {flightDetailsData && (
+                  <AdminViewFlightDetailsButton
+                    data={flightDetailsData}
+                    label="View Flight & Calculation Details"
+                    variant="banner"
+                  />
+                )}
                 {flightReadingsBanner.buttonLabel && !flightRecordRow && !(['paid_closed', 'waived_closed', 'payment_review_pending', 'payment_required', 'payment_still_due', 'payment_void', 'payment_failed', 'cancelled', 'no_show'] as string[]).includes(lifecycleStage.key) && (
                   <AdminFlightReadingsDisclosureTrigger
                     label={flightReadingsBanner.buttonLabel}
@@ -1727,6 +1802,35 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
           </div>
         )}
 
+        {bookingType === 'checkout' && (isPaymentRequired || booking.status === 'completed') && (
+          <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50/90 p-4 shadow-sm">
+            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+              <div className="min-w-0">
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-amber-700">
+                  Checkout Booking State
+                </p>
+                <h2 className="mt-1 text-[15px] font-semibold text-[#152d5a]">
+                  {isPaymentRequired ? 'Checkout completed — Awaiting payment' : 'Checkout completed'}
+                </h2>
+                <p className="mt-1 text-sm text-[#4b6390] leading-relaxed">
+                  {isPaymentRequired
+                    ? 'Checkout flight readings and outcome were recorded. Payment is required to finalize the checkout certification.'
+                    : 'Checkout flight readings and payment have been settled.'}
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2.5 md:ml-4 md:flex-shrink-0">
+                {flightDetailsData && (
+                  <AdminViewFlightDetailsButton
+                    data={flightDetailsData}
+                    label="View Flight & Calculation Details"
+                    variant="banner"
+                  />
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 gap-6 pb-8">
 
         {/* ── Left column: details ─────────────────────────────────────────────── */}
@@ -1746,7 +1850,11 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
           )}
 
           {isPaymentRequired && !invoiceSentViaStripe && latestBankTransferSub && isAwaitingManualPayment && (
-            <AdminBankTransferReviewPanel bookingId={booking.id} submission={latestBankTransferSub} />
+            <AdminBankTransferReviewPanel
+              bookingId={booking.id}
+              submission={latestBankTransferSub}
+              flightDetails={flightDetailsData}
+            />
           )}
 
           {isPaymentRequired && invoiceSentViaStripe && (
@@ -1781,7 +1889,11 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
           )}
 
           {isPaymentRequired && invoiceSentViaStripe && latestBankTransferSub && isAwaitingManualPayment && (
-            <AdminBankTransferReviewPanel bookingId={booking.id} submission={latestBankTransferSub} />
+            <AdminBankTransferReviewPanel
+              bookingId={booking.id}
+              submission={latestBankTransferSub}
+              flightDetails={flightDetailsData}
+            />
           )}
 
           {/* ── Standard booking manual payment panel ────────────────────────── */}
@@ -1789,6 +1901,7 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
             <AdminStandardBankTransferPanel
               bookingId={booking.id}
               submissions={standardPendingReviewSubmissions}
+              flightDetails={flightDetailsData}
             />
           ) : isStandardPaymentPending ? (
             <ManualPaymentDisclosure label="Need to record a direct payment settlement?">

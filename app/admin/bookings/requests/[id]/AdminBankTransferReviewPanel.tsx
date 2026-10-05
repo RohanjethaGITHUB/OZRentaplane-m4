@@ -7,6 +7,8 @@ import DocumentViewerModal from "@/components/ui/DocumentViewerModal"
 import type { DocumentFile } from "@/components/ui/DocumentViewerModal"
 import { formatDateFromISO } from "@/lib/formatDateTime"
 import { LoadingButtonContent } from '@/components/ui/Spinner'
+import type { FlightDetailsData } from './flight-details-types'
+import { AdminViewFlightDetailsButton } from './AdminFlightDetailsModal'
 
 type Submission = {
   id: string
@@ -22,9 +24,10 @@ type Submission = {
 type Props = {
   bookingId: string
   submission: Submission
+  flightDetails?: FlightDetailsData | null
 }
 
-export default function AdminBankTransferReviewPanel({ bookingId, submission }: Props) {
+export default function AdminBankTransferReviewPanel({ bookingId, submission, flightDetails }: Props) {
   const router = useRouter()
   const [loading, setLoading] = useState<"approve" | "reject" | null>(null)
   const [rejectNote, setRejectNote] = useState("")
@@ -63,11 +66,13 @@ export default function AdminBankTransferReviewPanel({ bookingId, submission }: 
 
   return (
     <div className="bg-white border border-[#152d5a]/10 rounded-2xl p-5 mt-4">
-      <div className="flex items-center gap-2 mb-4">
-        <span className="material-symbols-outlined text-[16px] text-amber-500">receipt_long</span>
-        <span className="text-[11px] font-semibold uppercase tracking-[0.1em] text-amber-600">
-          Bank Transfer Receipt Submitted
-        </span>
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+        <div className="flex items-center gap-2">
+          <span className="material-symbols-outlined text-[16px] text-amber-500">receipt_long</span>
+          <span className="text-[11px] font-semibold uppercase tracking-[0.1em] text-amber-600">
+            Bank Transfer Receipt Submitted
+          </span>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-[13px] mb-4">
@@ -85,23 +90,35 @@ export default function AdminBankTransferReviewPanel({ bookingId, submission }: 
         </div>
       </div>
 
-      {submission.signedReceiptUrl && (
-        <div className="mb-4">
-          <p className="text-[#4b6390] text-[11px] uppercase tracking-wide mb-2">Receipt</p>
-          <button
-            type="button"
-            onClick={() => {
-              setViewerFiles([{ url: submission.signedReceiptUrl!, name: 'Bank Transfer Receipt' }])
-              setViewerTitle('Bank Transfer Receipt')
-              setViewerOpen(true)
-            }}
-            className="inline-flex items-center gap-2 text-[#1a4fd6] text-[13px] font-semibold hover:underline"
-          >
-            <span className="material-symbols-outlined text-[15px]">open_in_new</span>
-            View receipt
-          </button>
+      <div className="mb-4 space-y-2">
+        <p className="text-[#4b6390] text-[11px] uppercase tracking-wide">Receipt & Flight Details</p>
+        <div className="flex flex-wrap items-center gap-3">
+          {submission.signedReceiptUrl && (
+            <button
+              type="button"
+              onClick={() => {
+                setViewerFiles([{ url: submission.signedReceiptUrl!, name: 'Bank Transfer Receipt' }])
+                setViewerTitle('Bank Transfer Receipt')
+                setViewerOpen(true)
+              }}
+              className="inline-flex items-center gap-2 text-[#1a4fd6] text-[13px] font-semibold hover:underline"
+            >
+              <span className="material-symbols-outlined text-[15px]">open_in_new</span>
+              View receipt
+            </button>
+          )}
+          {flightDetails && (
+            <AdminViewFlightDetailsButton
+              data={{
+                ...flightDetails,
+                receiptUrl: submission.signedReceiptUrl || flightDetails.receiptUrl,
+              }}
+              label="View Flight Details"
+              variant="inline"
+            />
+          )}
         </div>
-      )}
+      </div>
 
       {error && <p className="text-[12px] text-red-600 mb-3">{error}</p>}
 
