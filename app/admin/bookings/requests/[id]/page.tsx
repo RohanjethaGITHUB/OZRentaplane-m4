@@ -739,7 +739,11 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
       airportId: row.airport_id,
       landingCount: Number(row.landing_count),
     }))
-  const bookingInvoiceStatus = (standardBookingInvoiceRow as { status?: string | null } | null)?.status ?? null
+  const blockTimeFlightInvoice = (blockTimeInvoiceRows as any[])?.find((inv: any) => !inv.is_block_time_overage) || (blockTimeInvoiceRows as any[])?.[0] || null
+  const bookingInvoiceStatus =
+    (standardBookingInvoiceRow as { status?: string | null } | null)?.status ??
+    (blockTimeFlightInvoice?.status === 'awaiting' ? 'payment_required' : blockTimeFlightInvoice?.status) ??
+    null
   const billingStatusLabel = bookingInvoiceStatus ?? (booking as { payment_status?: string | null }).payment_status ?? null
   const standardInvoice = (standardBookingInvoiceRow as {
     status?: string | null
@@ -828,18 +832,17 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
     if (stdInvoiceRow) {
       standardInvoiceAmountDueCents = (stdInvoiceRow as { stripe_amount_due_cents?: number | null }).stripe_amount_due_cents ?? 0
     } else {
-      const { data: btInvoiceRow } = await supabase
+      const { data: btInvoiceRows } = await supabase
         .from('invoices')
         .select('id, total')
         .eq('booking_id', booking.id)
         .eq('billing_mode', 'block_time')
         .in('status', ['awaiting', 'bank_transfer_pending_review'])
         .order('created_at', { ascending: true })
-        .limit(1)
-        .maybeSingle()
-      if (btInvoiceRow) {
-        invoiceId = btInvoiceRow.id
-        standardInvoiceAmountDueCents = Math.round(Number(btInvoiceRow.total) * 100)
+
+      if (btInvoiceRows && btInvoiceRows.length > 0) {
+        invoiceId = btInvoiceRows[0].id
+        standardInvoiceAmountDueCents = btInvoiceRows.reduce((sum, inv) => sum + Math.round(Number(inv.total) * 100), 0)
       }
     }
 
@@ -887,12 +890,13 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
     return true
   })
 
-  const { data: rescheduleAuditRows } = await supabase
+  const { data: bookingAuditRows } = await supabase
     .from('booking_audit_events')
-    .select('id, actor_role, old_value, new_value, created_at')
+    .select('id, actor_role, event_type, event_summary, old_value, new_value, created_at')
     .eq('booking_id', booking.id)
-    .eq('event_type', 'booking_rescheduled')
     .order('created_at', { ascending: false })
+
+  const rescheduleAuditRows = (bookingAuditRows ?? []).filter((r) => r.event_type === 'booking_rescheduled')
 
   const isMultiDay = !isSameSydneyCalendarDay(booking.scheduled_start, booking.scheduled_end)
   const latestRescheduleAudit = rescheduleAuditRows?.[0]
@@ -920,9 +924,9 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
     flightRecordStatus: booking.flight_records?.[0]?.status ?? null,
     flightRecords: booking.flight_records ?? [],
     bookingInvoiceStatus,
-    bookingInvoicePaidAt: standardInvoice?.paid_at ?? null,
-    bookingInvoiceAmountDueCents: standardInvoice?.stripe_amount_due_cents ?? null,
-    bookingInvoiceTotalPaidCents: standardInvoice?.total_paid_cents ?? null,
+    bookingInvoicePaidAt: standardInvoice?.paid_at ?? blockTimeFlightInvoice?.paid_at ?? null,
+    bookingInvoiceAmountDueCents: standardInvoice?.stripe_amount_due_cents ?? (blockTimeFlightInvoice ? Math.round(Number(blockTimeFlightInvoice.total || 0) * 100) : null),
+    bookingInvoiceTotalPaidCents: standardInvoice?.total_paid_cents ?? (blockTimeFlightInvoice?.status === 'paid' ? Math.round(Number(blockTimeFlightInvoice.total || 0) * 100) : null),
     latestBankTransferSubmissionStatus: latestStdBankSub?.status ?? null,
     paymentStatus: (booking as { payment_status?: string | null }).payment_status ?? null,
   })
@@ -1140,6 +1144,16 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
   const bookingRef    = (booking as { booking_reference?: string }).booking_reference
     ?? booking.id.split('-')[0].toUpperCase()
 
+  const { data: latestPackageRow } = !activeBlockTime && needsBillingPreview
+    ? await supabase
+        .from('pilot_block_time_purchases')
+        .select('hours_remaining, rate_per_hour, expires_at, status')
+        .eq('user_id', booking.booking_owner_user_id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+    : { data: null }
+
   const flightDetailsData = buildFlightDetailsData({
     booking: {
       id: booking.id,
@@ -1154,6 +1168,15 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
     bookingFlightLog: bookingFlightLogRow,
     standardInvoice: standardBookingInvoiceRow,
     blockTimeInvoices: blockTimeInvoiceRows as any[],
+    activeBlockTime:
+      activeBlockTime ??
+      (latestPackageRow
+        ? {
+            hoursRemaining: Number(latestPackageRow.hours_remaining),
+            ratePerHour: Number(latestPackageRow.rate_per_hour),
+            expiresAt: latestPackageRow.expires_at,
+          }
+        : null),
     checkoutInvoice: checkoutInvoice as any,
     standardLandings: standardLandingChargesRows as any[],
     checkoutLandings: checkoutLandingChargesRows as any[],
@@ -1170,7 +1193,17 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
       (bookingType === 'checkout' && latestBankTransferSub?.status === 'pending_review') ||
       standardBookingInvoiceRow?.status === 'bank_transfer_pending_review' ||
       checkoutInvoice?.status === 'bank_transfer_pending_review',
+    isMultiDay,
+    bookingAuditEvents: bookingAuditRows ?? null,
   })
+
+  const hasSubmittedFlightReadings = Boolean(
+    (flightRecordRow && (flightRecordRow as { status?: string }).status !== 'draft') ||
+    standardBookingInvoiceRow ||
+    (blockTimeInvoiceRows && blockTimeInvoiceRows.length > 0) ||
+    checkoutInvoice ||
+    (bookingFlightLogRow && ((bookingFlightLogRow as { vdo_total?: number | null }).vdo_total != null || (bookingFlightLogRow as { vdo_stop?: number | null }).vdo_stop != null))
+  )
   const statusHistory = rawHistory ?? []
   const checkoutSteps = [
     { key: 'checkout_requested',              label: 'Checkout\nRequested', color: '#90a4ae' },
@@ -1764,7 +1797,7 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
               </div>
 
               <div className="flex flex-wrap items-center gap-2.5 md:ml-4 md:flex-shrink-0">
-                {flightDetailsData && (
+                {flightDetailsData && hasSubmittedFlightReadings && (
                   <AdminViewFlightDetailsButton
                     data={flightDetailsData}
                     label="View Flight & Calculation Details"
@@ -2109,7 +2142,10 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
                         <span className="text-[11px] font-medium text-deep-ink text-right ml-3">{line.value}</span>
                       </div>
                     ))}
-                  {bookingType === 'standard' && standardInvoice && Boolean(standardInvoice.status && ['paid', 'settled', 'waived'].includes(standardInvoice.status)) && (
+                  {bookingType === 'standard' && (standardInvoice || blockTimeFlightInvoice) && Boolean(
+                    (standardInvoice?.status && ['paid', 'settled', 'waived'].includes(standardInvoice.status)) ||
+                    (blockTimeFlightInvoice?.status && ['paid', 'settled', 'waived'].includes(blockTimeFlightInvoice.status))
+                  ) && (
                     <div className="pt-3">
                       <a
                         href={`/dashboard/bookings/${booking.id}/invoice`}
@@ -2118,7 +2154,7 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
                         className="inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.08em] text-[#1a4fd6] hover:underline"
                       >
                         <span className="material-symbols-outlined text-[15px]">download</span>
-                        {standardInvoice.status === 'paid' ? 'Download Receipt' : 'Download Invoice'}
+                        {(standardInvoice?.status || blockTimeFlightInvoice?.status) === 'paid' ? 'Download Receipt' : 'Download Invoice'}
                       </a>
                     </div>
                   )}
@@ -2207,6 +2243,7 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
                 bookingId={booking.id}
                 airports={airports}
                 scheduledStart={booking.scheduled_start}
+                scheduledEnd={booking.scheduled_end}
                 startSuggestions={flightLogStartSuggestions}
                 activeBlockTime={activeBlockTime}
                 bookingSlotHours={bookingSlotHours}
@@ -2227,6 +2264,8 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
               initialLandingCharges={initialLandingCharges}
               startSuggestions={flightLogStartSuggestions}
               bookingSlotHours={bookingSlotHours}
+              scheduledStart={booking.scheduled_start}
+              scheduledEnd={booking.scheduled_end}
               activeBlockTime={activeBlockTime}
               defaultHourlyRate={PAYF_RATE_PER_HOUR}
               evidenceAttachments={evidenceAttachments}

@@ -428,10 +428,7 @@ export async function approvePostFlightReview(
           .eq('booking_id', flightRecord.booking_id)
           .maybeSingle()
         const prevDeducted = Number(uRow?.hours_deducted || blockInfo.hours_deducted || 0)
-        initialAvailableHours = Number(pRow.hours_remaining || 0) + prevDeducted
-        if (initialAvailableHours <= 0) {
-          initialAvailableHours = Number(pRow.hours_purchased || 0)
-        }
+        initialAvailableHours = Math.max(0, Number(pRow.hours_remaining || 0) + prevDeducted)
         if (!packageRate && pRow.rate_per_hour) {
           packageRate = Number(pRow.rate_per_hour)
         }
@@ -3535,6 +3532,18 @@ async function rejectStandardBankTransferWithoutReviewedBy(
     .eq('id', sub.invoice_id)
     .in('status', ['payment_required', 'bank_transfer_pending_review'])
   if (invUpdateErr) throw new Error(invUpdateErr.message)
+
+  // Also update block-time flight invoices if applicable
+  await admin
+    .from('invoices')
+    .update({
+      status: 'awaiting',
+      payment_method: null,
+      updated_at: now,
+    })
+    .eq('booking_id', bookingId)
+    .eq('billing_mode', 'block_time')
+    .in('status', ['bank_transfer_pending_review'])
 }
 
 // ─── Confirm standard bank transfer ───────────────────────────────────────────
@@ -3579,35 +3588,47 @@ export async function adminConfirmStandardBankTransfer(submissionId: string, boo
         .eq('id', submissionId)
     }
 
-    await supabase
+    // Settle ALL pending block-time invoices (both overage and landing fee) for this booking
+    const { data: btInvoicesToPay } = await supabase
       .from('invoices')
-      .update({
-        status: 'paid',
-        payment_method: 'bank_transfer',
-        paid_at: now,
-      })
-      .eq('id', blockTimeInvoice.id)
+      .select('id, total, is_block_time_overage')
+      .eq('booking_id', bookingId)
+      .eq('billing_mode', 'block_time')
+      .in('status', ['awaiting', 'bank_transfer_pending_review'])
 
-    const amountCents = Math.round(Number(blockTimeInvoice.total) * 100)
-    await supabase
-      .from('customer_payment_ledger')
-      .insert({
-        customer_id: subData!.customer_id,
-        booking_id: bookingId,
-        invoice_id: blockTimeInvoice.id,
-        invoice_source_type: 'block_time',
-        amount_cents: amountCents,
-        entry_type: 'bank_transfer',
-        payment_method: 'bank_transfer',
-        note: 'Bank transfer approved by admin',
-        created_by: adminId,
-      })
+    const invoicesToSettle = btInvoicesToPay && btInvoicesToPay.length > 0 ? btInvoicesToPay : [blockTimeInvoice]
+
+    for (const inv of invoicesToSettle) {
+      await supabase
+        .from('invoices')
+        .update({
+          status: 'paid',
+          payment_method: 'bank_transfer',
+          paid_at: now,
+        })
+        .eq('id', inv.id)
+
+      const amountCents = Math.round(Number(inv.total) * 100)
+      await supabase
+        .from('customer_payment_ledger')
+        .insert({
+          customer_id: subData!.customer_id,
+          booking_id: bookingId,
+          invoice_id: inv.id,
+          invoice_source_type: 'block_time',
+          amount_cents: amountCents,
+          entry_type: 'bank_transfer',
+          payment_method: 'bank_transfer',
+          note: `Bank transfer approved by admin (${inv.is_block_time_overage ? 'overage' : 'landing fee'})`,
+          created_by: adminId,
+        })
+    }
 
     const { data: remainingAwaiting } = await supabase
       .from('invoices')
       .select('id')
       .eq('booking_id', bookingId)
-      .eq('status', 'awaiting')
+      .in('status', ['awaiting', 'bank_transfer_pending_review'])
 
     if (!remainingAwaiting || remainingAwaiting.length === 0) {
       await supabase
@@ -3650,6 +3671,75 @@ export async function adminConfirmStandardBankTransfer(submissionId: string, boo
       pdfResult = await generateStandardBookingInvoicePdf({ supabase, invoiceId: subData.invoice_id })
     } catch (pdfErr) {
       console.error('[adminConfirmStandardBankTransfer] standard invoice PDF generation failed:', pdfErr)
+    }
+  } else if (blockTimeInvoice) {
+    try {
+      const { data: invRow } = await supabase
+        .from('invoices')
+        .select('id, invoice_number, user_id, booking_id, total, subtotal, gst_amount, paid_at, created_at, billing_mode, is_block_time_overage')
+        .eq('id', blockTimeInvoice.id)
+        .single()
+      const { data: lineItems } = await supabase
+        .from('invoice_line_items')
+        .select('description, quantity, unit_price, amount')
+        .eq('invoice_id', blockTimeInvoice.id)
+        .order('display_order', { ascending: true })
+      const { data: bRow } = await supabase
+        .from('bookings')
+        .select('booking_reference, scheduled_start, aircraft(registration, aircraft_type)')
+        .eq('id', bookingId)
+        .maybeSingle()
+      const { data: pilotProf } = await supabase
+        .from('profiles')
+        .select('full_name, email, phone_country_code, phone_number')
+        .eq('id', subData!.customer_id)
+        .maybeSingle()
+
+      if (invRow) {
+        const { generateInvoicePdf } = await import('@/lib/invoices/pdf')
+        const { storeInvoicePdf } = await import('@/lib/invoices/pdf-storage')
+        const aircraftData = Array.isArray(bRow?.aircraft) ? bRow.aircraft[0] : bRow?.aircraft
+        const pdfBuffer = await generateInvoicePdf({
+          invoiceNumber: invRow.invoice_number,
+          documentKind: 'tax_invoice',
+          statusLabel: 'PAID',
+          createdAt: invRow.created_at,
+          dueAt: invRow.paid_at || new Date().toISOString(),
+          paidAt: invRow.paid_at || new Date().toISOString(),
+          paymentMethodLabel: 'Direct Deposit (Bank Transfer)',
+          billingModeLabel: 'Block Time',
+          bookingRefLabel: bRow?.booking_reference,
+          flightDate: bRow?.scheduled_start ?? null,
+          billToName: pilotProf?.full_name || 'Pilot',
+          billToEmail: pilotProf?.email || '—',
+          billToPhone: pilotProf?.phone_number || null,
+          lineItems: (lineItems ?? []).map(li => ({
+            description: li.description,
+            quantity: Number(li.quantity),
+            unitPrice: Number(li.unit_price),
+            amount: Number(li.amount),
+          })),
+          subtotal: Number(invRow.subtotal),
+          gstAmount: Number(invRow.gst_amount),
+          total: Number(invRow.total),
+          amountPaid: Number(invRow.total),
+          footerNote: 'All prices include GST. Payment confirmed. Flight hours deducted from block time package.',
+          flightMetrics: {
+            aircraftRegistration: aircraftData?.registration || 'VH-KZG',
+            aircraftModel: aircraftData?.aircraft_type || 'Cessna 172N',
+          },
+        })
+        pdfResult = await storeInvoicePdf({
+          supabase,
+          table: 'invoices',
+          rowId: invRow.id,
+          userId: invRow.user_id,
+          invoiceNumber: invRow.invoice_number,
+          pdfBuffer,
+        })
+      }
+    } catch (pdfErr) {
+      console.error('[adminConfirmStandardBankTransfer] block time PDF regeneration failed:', pdfErr)
     }
   }
 
@@ -4359,13 +4449,76 @@ export async function finaliseStandardBookingInvoice(input: {
       })
     }
 
-    // Generate + upload a PDF for every invoice created by the drawdown
-    // (usage, overage, landing fees — each is its own invoice document).
+    const deductedHours = Math.round((effectiveVdoHoursRounded - Number(drawdown.out_overflow_hours)) * 100) / 100
+
+    // Consolidate block time flight invoicing into ONE invoice per booking:
+    // If a landing fee invoice exists, merge the package deduction line item into it,
+    // point pilot_block_time_usage to it, and remove the duplicate separate usage invoice.
+    let consolidatedFlightInvoiceId = drawdown.out_landing_invoice_id || drawdown.out_usage_invoice_id
+    if (drawdown.out_landing_invoice_id && drawdown.out_usage_invoice_id) {
+      try {
+        const adminDb = createAdminClient()
+        await adminDb
+          .from('pilot_block_time_usage')
+          .update({ invoice_id: drawdown.out_landing_invoice_id })
+          .eq('booking_id', input.bookingId)
+
+        if (deductedHours > 0) {
+          await adminDb
+            .from('invoice_line_items')
+            .insert({
+              invoice_id: drawdown.out_landing_invoice_id,
+              type: 'flight_hours',
+              description: `Aircraft Hire — Block Time deduction (${deductedHours.toFixed(1)} hrs deducted · $0.00 flight charge)`,
+              quantity: deductedHours,
+              unit_price: 0,
+              amount: 0,
+              display_order: 1,
+            })
+        }
+
+        await adminDb
+          .from('invoice_line_items')
+          .update({ display_order: 2 })
+          .eq('invoice_id', drawdown.out_landing_invoice_id)
+          .eq('type', 'landing_fee')
+
+        await adminDb.from('invoice_line_items').delete().eq('invoice_id', drawdown.out_usage_invoice_id)
+        await adminDb.from('invoices').delete().eq('id', drawdown.out_usage_invoice_id)
+      } catch (mergeErr) {
+        console.warn('[finaliseStandardBookingInvoice] Failed to merge usage into landing invoice:', mergeErr)
+      }
+    } else if (!drawdown.out_landing_invoice_id && drawdown.out_usage_invoice_id) {
+      // If no landing fees, the flight invoice is the usage invoice with $0 billed
+      try {
+        const adminDb = createAdminClient()
+        await adminDb
+          .from('invoices')
+          .update({ total: 0, subtotal: 0, gst_amount: 0 })
+          .eq('id', drawdown.out_usage_invoice_id)
+        await adminDb
+          .from('invoice_line_items')
+          .update({ unit_price: 0, amount: 0, description: `Aircraft Hire — Block Time deduction (${deductedHours.toFixed(1)} hrs deducted · $0.00 flight charge)` })
+          .eq('invoice_id', drawdown.out_usage_invoice_id)
+          .eq('type', 'flight_hours')
+      } catch (zeroErr) {
+        console.warn('[finaliseStandardBookingInvoice] Failed to zero out zero-fee usage invoice:', zeroErr)
+      }
+    }
+
+    // Generate + upload a PDF for the consolidated flight invoice (and overage if separate)
     const pdfUrls = new Map<string, string>()
     const invoiceIdsForPdf = [
-      { id: drawdown.out_usage_invoice_id,   footer: 'All prices include GST. Block time usage is deducted when the flight record is finalised.' },
-      { id: drawdown.out_overage_invoice_id, footer: 'All prices include GST. BLOCK TIME OVERAGE: these hours exceeded your package balance and are billed at your locked package rate. Payment is required before new bookings or block time purchases.' },
-      { id: drawdown.out_landing_invoice_id, footer: 'All prices include GST. Landing fees are invoiced separately from flight hours.' },
+      {
+        id: consolidatedFlightInvoiceId,
+        footer: 'All prices include GST. Block time usage is deducted from your package balance.',
+      },
+      ...(drawdown.out_overage_invoice_id && drawdown.out_overage_invoice_id !== consolidatedFlightInvoiceId
+        ? [{
+            id: drawdown.out_overage_invoice_id,
+            footer: 'All prices include GST. BLOCK TIME OVERAGE: these hours exceeded your package balance and are billed at your locked package rate. Payment is required before new bookings or block time purchases.',
+          }]
+        : []),
     ].filter((entry): entry is { id: string; footer: string } => entry.id != null)
 
     for (const entry of invoiceIdsForPdf) {
@@ -4398,8 +4551,10 @@ export async function finaliseStandardBookingInvoice(input: {
           dueAt: invoice.paid_at ?? invoice.created_at,
           billingModeLabel: invoice.is_block_time_overage ? 'Block Time — OVERAGE' : 'Block Time',
           bookingRefLabel: booking.booking_reference,
+          flightDate: booking.scheduled_start ?? null,
           billToName: pilotProfile?.full_name?.trim() || snapshotProfile?.full_name?.trim() || 'Pilot',
           billToEmail: pilotProfile?.email?.trim() || '—',
+          billToPhone: (pilotProfile as any)?.phone_number || null,
           lineItems: (lineItems ?? []).map((lineItem) => ({
             description: lineItem.description,
             quantity: Number(lineItem.quantity),
@@ -4409,7 +4564,13 @@ export async function finaliseStandardBookingInvoice(input: {
           subtotal: Number(invoice.subtotal),
           gstAmount: Number(invoice.gst_amount),
           total: Number(invoice.total),
+          amountPaid: invoice.status === 'paid' ? Number(invoice.total) : undefined,
           footerNote: entry.footer,
+          flightMetrics: {
+            aircraftRegistration: (Array.isArray((booking as any)?.aircraft) ? (booking as any).aircraft[0] : (booking as any)?.aircraft)?.registration || 'VH-KZG',
+            aircraftModel: (Array.isArray((booking as any)?.aircraft) ? (booking as any).aircraft[0] : (booking as any)?.aircraft)?.aircraft_type || 'Cessna 172N',
+            vdoHours: effectiveVdoHoursRounded,
+          },
         })
         const storedPdf = await storeInvoicePdf({
           supabase,
@@ -4425,7 +4586,7 @@ export async function finaliseStandardBookingInvoice(input: {
         console.error('[finaliseStandardBookingInvoice] block time PDF generation failed:', error)
       }
     }
-    const usagePdfUrl = pdfUrls.get(drawdown.out_usage_invoice_id) ?? null
+    const usagePdfUrl = pdfUrls.get(consolidatedFlightInvoiceId) ?? null
     const landingPdfUrl = drawdown.out_landing_invoice_id
       ? pdfUrls.get(drawdown.out_landing_invoice_id) ?? null
       : null
@@ -4434,7 +4595,6 @@ export async function finaliseStandardBookingInvoice(input: {
       Boolean(drawdown.out_landing_invoice_id) &&
       landingFeesTotal > 0
 
-    const deductedHours = Math.round((effectiveVdoHoursRounded - Number(drawdown.out_overflow_hours)) * 100) / 100
     const blockTimeMessageParts = [
       ...(minimumVdoOutcomeMessage ? [minimumVdoOutcomeMessage] : []),
       `Your flight of ${vdoReading}h has been recorded and ${deductedHours}h deducted from your Block Time balance. Remaining balance: ${drawdown.out_hours_after}h.`,
@@ -5055,6 +5215,22 @@ export async function adminSubmitFlightRecord(input: {
     throw new Error('VALIDATION: A flight record has already been submitted for this booking.')
   }
 
+  const scheduledStart = new Date(booking.scheduled_start)
+  const scheduledEnd = new Date(booking.scheduled_end)
+  const bookingSlotHours = (scheduledEnd.getTime() - scheduledStart.getTime()) / (1000 * 60 * 60)
+  const minimumVdoBilling = resolveMinimumVdoBilling({
+    bookingSlotHours,
+    scheduledStart: booking.scheduled_start,
+    scheduledEnd: booking.scheduled_end,
+    actualVdoHours: input.readings.vdo_total,
+    decision: input.minimumVdoDecision ?? null,
+  })
+  if (minimumVdoBilling.requiresDecision || minimumVdoBilling.billedVdoHours == null) {
+    throw new Error(
+      `VALIDATION: VDO total (${input.readings.vdo_total}h) is below the minimum ${minimumVdoBilling.minimumVdoHours}h for this booking. Choose whether to bill the minimum or the actual hours before finalising.`,
+    )
+  }
+
   const landingCharges = (input.landingCharges ?? []).filter(
     (row) => row.airportId?.trim() && Number.isInteger(row.landingCount) && row.landingCount > 0,
   )
@@ -5087,17 +5263,31 @@ export async function adminSubmitFlightRecord(input: {
 
   // Booking is now pending_post_flight_review — run the shared billing
   // finalisation (block time drawdown / PAYF invoice branching lives there).
-  await finaliseStandardBookingInvoice({
-    bookingId:      input.bookingId,
-    ratePerHour:    input.ratePerHour,
-    landingCharges: landingCharges.length > 0 ? landingCharges : undefined,
-    adminNotes:     input.adminNotes,
-    readings:       input.readings,
-    submissionMode:  input.submissionMode,
-    manualPaymentMethod: input.manualPaymentMethod,
-    waiverReason:    input.waiverReason,
-    minimumVdoDecision: input.minimumVdoDecision,
-  })
+  try {
+    await finaliseStandardBookingInvoice({
+      bookingId:      input.bookingId,
+      ratePerHour:    input.ratePerHour,
+      landingCharges: landingCharges.length > 0 ? landingCharges : undefined,
+      adminNotes:     input.adminNotes,
+      readings:       input.readings,
+      submissionMode:  input.submissionMode,
+      manualPaymentMethod: input.manualPaymentMethod,
+      waiverReason:    input.waiverReason,
+      minimumVdoDecision: input.minimumVdoDecision,
+    })
+  } catch (finaliseErr) {
+    console.error('[adminSubmitFlightRecord] finaliseStandardBookingInvoice failed, rolling back created record:', finaliseErr)
+    await supabase
+      .from('flight_records')
+      .delete()
+      .eq('booking_id', input.bookingId)
+      .eq('status', 'pending_review')
+    await supabase
+      .from('bookings')
+      .update({ status: booking.status })
+      .eq('id', input.bookingId)
+    throw finaliseErr
+  }
 
   // After post-flight finalisation the aircraft is free — release any leftover
   // active schedule holds (including early-finish remaining window).

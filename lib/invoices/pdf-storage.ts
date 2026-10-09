@@ -38,16 +38,29 @@ export async function storeInvoicePdf({
   const storagePath = `${userId}/${invoiceNumber}.pdf`
   const fileName = `${invoiceNumber}.pdf`
 
-  const uploadResult = await admin.storage
-    .from('invoice_pdfs')
-    .upload(storagePath, pdfBuffer, {
-      contentType: 'application/pdf',
-      upsert: true,
-      cacheControl: '0',
-    })
+  let uploadResult: any = null
+  let lastErr: any = null
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    uploadResult = await admin.storage
+      .from('invoice_pdfs')
+      .upload(storagePath, pdfBuffer, {
+        contentType: 'application/pdf',
+        upsert: true,
+        cacheControl: '0',
+      })
+    if (!uploadResult.error) {
+      lastErr = null
+      break
+    }
+    lastErr = uploadResult.error
+    console.warn(`[pdf-storage] upload attempt ${attempt} failed:`, lastErr.message || lastErr)
+    if (attempt < 3) {
+      await new Promise((r) => setTimeout(r, 1000 * attempt))
+    }
+  }
 
-  if (uploadResult.error) {
-    throw uploadResult.error
+  if (lastErr) {
+    throw lastErr
   }
 
   const { data: publicUrlData } = admin.storage.from('invoice_pdfs').getPublicUrl(storagePath)

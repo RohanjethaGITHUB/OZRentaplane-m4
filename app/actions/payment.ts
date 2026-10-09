@@ -1194,7 +1194,7 @@ export async function submitStandardBankTransferProof(
           payment_method: "bank_transfer",
           status: "bank_transfer_pending_review",
         })
-        .eq("id", invoiceId);
+        .or(`id.eq.${invoiceId},and(booking_id.eq.${bookingId},billing_mode.eq.block_time,status.eq.awaiting)`);
 
       submissionId = inserted.id;
     } catch (btErr: any) {

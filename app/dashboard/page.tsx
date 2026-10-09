@@ -411,7 +411,7 @@ export default async function DashboardPage({
   let postFlightBankTransferStatus: string | null = null
   let isBlockTimeLandingFeeOnly = false
   if (postFlightPaymentRequiredBooking) {
-    const [{ data: pfInvoiceRow }, { data: btInvoiceRow }] = await perf.time(
+    const [{ data: pfInvoiceRow }, { data: btInvoiceRows }, { data: pfBtSubByBooking }] = await perf.time(
       'customer_dashboard_page',
       'customer_dashboard_payment_followups',
       () => Promise.all([
@@ -422,33 +422,52 @@ export default async function DashboardPage({
           .maybeSingle(),
         supabase
           .from('invoices')
-          .select('id, is_block_time_overage')
+          .select('id, is_block_time_overage, status')
           .eq('booking_id', postFlightPaymentRequiredBooking.id)
           .eq('billing_mode', 'block_time')
           .eq('type', 'flight')
-          .in('status', ['awaiting', 'bank_transfer_pending_review'])
-          .maybeSingle(),
-      ]),
-      (result) => ({ rowCount: (result[0].data ? 1 : 0) + (result[1].data ? 1 : 0) }),
-    )
-    if (btInvoiceRow && !btInvoiceRow.is_block_time_overage) {
-      isBlockTimeLandingFeeOnly = true
-    }
-    const invoiceId = pfInvoiceRow?.id || btInvoiceRow?.id
-    if (invoiceId) {
-      const { data: pfBtSub } = await perf.time(
-        'customer_dashboard_page',
-        'customer_dashboard_payment_followups',
-        () => supabase
+          .in('status', ['awaiting', 'bank_transfer_pending_review']),
+        supabase
           .from('booking_bank_transfer_submissions')
           .select('status, admin_note')
-          .eq('invoice_id', invoiceId)
+          .eq('booking_id', postFlightPaymentRequiredBooking.id)
           .order('submitted_at', { ascending: false })
           .limit(1)
           .maybeSingle(),
-        (result) => ({ rowCount: result.data ? 1 : 0 }),
-      )
-      postFlightBankTransferStatus = (pfBtSub as { status: string; admin_note?: string | null } | null)?.status ?? null
+      ]),
+      (result) => ({ rowCount: (result[0].data ? 1 : 0) + (result[1].data?.length ? 1 : 0) + (result[2].data ? 1 : 0) }),
+    )
+
+    const btList = (btInvoiceRows ?? []) as Array<{ id: string; is_block_time_overage: boolean; status: string }>
+    if (btList.length > 0 && !btList.some((r) => r.is_block_time_overage)) {
+      isBlockTimeLandingFeeOnly = true
+    }
+
+    if (pfBtSubByBooking?.status) {
+      postFlightBankTransferStatus = pfBtSubByBooking.status
+    } else {
+      // Fallback: check by invoice IDs
+      const invoiceIds = [
+        ...(pfInvoiceRow?.id ? [pfInvoiceRow.id] : []),
+        ...btList.map((r) => r.id),
+      ]
+      if (invoiceIds.length > 0) {
+        const { data: pfBtSubByInv } = await supabase
+          .from('booking_bank_transfer_submissions')
+          .select('status, admin_note')
+          .in('invoice_id', invoiceIds)
+          .order('submitted_at', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+        if (pfBtSubByInv?.status) {
+          postFlightBankTransferStatus = pfBtSubByInv.status
+        }
+      }
+    }
+
+    // Additional safeguard: if any associated block-time invoice is already flagged bank_transfer_pending_review
+    if (!postFlightBankTransferStatus && btList.some((r) => r.status === 'bank_transfer_pending_review')) {
+      postFlightBankTransferStatus = 'pending_review'
     }
   }
 

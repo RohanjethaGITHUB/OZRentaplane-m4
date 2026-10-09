@@ -1780,20 +1780,22 @@ export default function PostFlightVerificationConsole({
         <div className="space-y-3 text-xs">
           {isBlockTime ? (
             <div className="space-y-2">
-              <div className="flex justify-between items-center text-slate-700 bg-blue-50/70 p-3 rounded-xl border border-blue-100">
-                <div className="space-y-0.5">
-                  <span className="font-bold text-slate-900 flex items-center gap-1.5 text-xs">
-                    <span className="material-symbols-outlined text-sm text-[#1a4fd6]">inventory_2</span>
-                    Block Time Drawdown &mdash; {blockTimeDetails?.packageName || 'Starter Block'}
-                  </span>
-                  <span className="text-[11px] text-slate-600 block">
-                    {blockHoursDeducted.toFixed(1)}h deducted &middot; Balance: {blockHoursRemainingAfter.toFixed(1)}h remaining
+              {blockHoursDeducted > 0 && (
+                <div className="flex justify-between items-center text-slate-700 bg-blue-50/70 p-3 rounded-xl border border-blue-100">
+                  <div className="space-y-0.5">
+                    <span className="font-bold text-slate-900 flex items-center gap-1.5 text-xs">
+                      <span className="material-symbols-outlined text-sm text-[#1a4fd6]">inventory_2</span>
+                      Block Time Drawdown &mdash; {blockTimeDetails?.packageName || 'Starter Block'}
+                    </span>
+                    <span className="text-[11px] text-slate-600 block">
+                      {blockHoursDeducted.toFixed(1)}h deducted &middot; Balance: {blockHoursRemainingAfter.toFixed(1)}h remaining
+                    </span>
+                  </div>
+                  <span className="font-bold text-slate-900 tabular-nums text-xs">
+                    $0.00 AUD
                   </span>
                 </div>
-                <span className="font-bold text-slate-900 tabular-nums text-xs">
-                  $0.00 AUD
-                </span>
-              </div>
+              )}
 
               {blockOverageHours > 0 && (
                 <div className="flex justify-between items-center text-amber-950 bg-amber-50/80 p-3 rounded-xl border border-amber-200">

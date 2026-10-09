@@ -383,7 +383,7 @@ export default async function AdminActionsPage({
     // Shares request cache with admin layout sidebar badges (no duplicate unread/doc fan-out).
     getCachedAdminShellBadges(),
     getCachedAdminDocumentReviewRows(),
-    safeQuery('block time overage invoices', supabase.from('invoices').select('id, invoice_number, created_at, user_id, bookings ( booking_type, pic_name, aircraft ( id, registration ) )').eq('is_block_time_overage', true).eq('status', 'awaiting')),
+    safeQuery('block time overage invoices', supabase.from('invoices').select('id, invoice_number, created_at, user_id, booking_id, bookings ( id, booking_type, pic_name, aircraft ( id, registration ) )').eq('is_block_time_overage', true).eq('status', 'awaiting')),
     safeQuery('checkout manual review count', supabase.from('checkout_bank_transfer_submissions').select('id', { count: 'exact', head: true }).eq('status', 'pending_review')),
     safeQuery('checkout issue count', supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('role', 'customer').in('pilot_clearance_status', ['additional_checkout_required', 'checkout_reschedule_required', 'not_currently_eligible'])),
     safeQuery('checkout requested rows', supabase
@@ -500,6 +500,7 @@ export default async function AdminActionsPage({
     { data: ownerProfiles },
     { data: documentReviewBookingRows },
     { data: bookingInvoiceRows },
+    { data: standardDirectInvoiceRows },
     { data: bookingBankTransferSubmissionRows },
     { data: checkoutInvoiceRows },
     { data: checkoutBankTransferSubmissionRows },
@@ -545,6 +546,16 @@ export default async function AdminActionsPage({
               .in('booking_id', standardPaymentBookingIds),
           )
         : Promise.resolve({ data: [] as BookingInvoiceRow[] }),
+      standardPaymentBookingIds.length
+        ? safeQuery(
+            'standard direct invoice rows',
+            supabase
+              .from('invoices')
+              .select('id, booking_id, status, payment_method, total, paid_at, created_at, updated_at')
+              .in('booking_id', standardPaymentBookingIds)
+              .eq('type', 'flight'),
+          )
+        : Promise.resolve({ data: [] as any[] }),
       standardPaymentBookingIds.length
         ? safeQuery(
             'booking bank transfer submission rows',
@@ -609,13 +620,30 @@ export default async function AdminActionsPage({
       bookingInvoicesByBookingId.set(invoice.booking_id, invoice)
     }
   }
+  for (const row of (standardDirectInvoiceRows ?? []) as any[]) {
+    if (!row.booking_id) continue
+    const current = bookingInvoicesByBookingId.get(row.booking_id)
+    if (!current || new Date(row.updated_at || row.created_at).getTime() > new Date(current.updated_at).getTime()) {
+      bookingInvoicesByBookingId.set(row.booking_id, {
+        id: row.id,
+        booking_id: row.booking_id,
+        status: row.status === 'awaiting' ? 'open' : row.status,
+        payment_method: row.payment_method,
+        stripe_amount_due_cents: Math.round(Number(row.total || 0) * 100),
+        total_paid_cents: row.status === 'paid' ? Math.round(Number(row.total || 0) * 100) : 0,
+        paid_at: row.paid_at,
+        created_at: row.created_at,
+        updated_at: row.updated_at || row.created_at,
+      } as any)
+    }
+  }
 
   const standardPaymentInvoiceIds = Array.from(bookingInvoicesByBookingId.values()).map((invoice) => invoice.id)
   const standardPaymentInvoiceIdSet = new Set(standardPaymentInvoiceIds)
   const bookingBankTransferSubmissionsByBookingId = new Map<string, BookingBankTransferSubmissionRow[]>()
   for (const row of bookingBankTransferSubmissionRows ?? []) {
     const submission = row as BookingBankTransferSubmissionRow
-    if (!standardPaymentInvoiceIdSet.has(submission.invoice_id)) continue
+    if (!standardPaymentInvoiceIdSet.has(submission.invoice_id) && !standardPaymentBookingIds.includes(submission.booking_id)) continue
     const list = bookingBankTransferSubmissionsByBookingId.get(submission.booking_id) ?? []
     list.push(submission)
     bookingBankTransferSubmissionsByBookingId.set(submission.booking_id, list)
@@ -885,7 +913,18 @@ export default async function AdminActionsPage({
     } satisfies ActionItem
   })
 
-  const overageInvoiceItems = (overageInvoiceRows ?? []).map((row: any) => {
+  const trackedBookingIds = new Set([
+    ...(standardPostFlightRows ?? []).map((r: any) => r.id),
+    ...(standardPaymentRows ?? []).map((r: any) => r.id),
+    ...(standardAwaitingFlightRows ?? []).map((r: any) => r.id),
+    ...(standardUpcomingRows ?? []).map((r: any) => r.id),
+    ...(checkoutPaymentRows ?? []).map((r: any) => r.id),
+    ...(checkoutReviewRows ?? []).map((r: any) => r.id),
+  ])
+
+  const overageInvoiceItems = (overageInvoiceRows ?? [])
+    .filter((row: any) => !row.booking_id || !trackedBookingIds.has(row.booking_id))
+    .map((row: any) => {
     const booking = firstItem(row.bookings)
     const profile = profileFor(row.user_id)
     const customerLabel = profile ? fullCustomerName(profile, booking?.pic_name ?? null) : 'Customer'

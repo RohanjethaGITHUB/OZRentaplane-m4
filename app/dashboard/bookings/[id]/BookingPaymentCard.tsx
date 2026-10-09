@@ -47,6 +47,14 @@ type Props = {
     bsb: string
     accountNumber: string
   } | null
+  blockTimeBreakdown?: {
+    hasOverage?: boolean
+    hasLanding?: boolean
+    overageAmountCents?: number
+    landingAmountCents?: number
+    overageHours?: number
+    overageRateCents?: number
+  }
 }
 
 function money(cents: number) {
@@ -60,6 +68,7 @@ export default function BookingPaymentCard({
   landingCharges = [],
   bankTransferSubmission,
   bankDetails,
+  blockTimeBreakdown,
 }: Props) {
   const router = useRouter()
   const [method, setMethod] = useState<"stripe" | "bank_transfer">("stripe")
@@ -251,18 +260,78 @@ export default function BookingPaymentCard({
         </div>
 
         <div className="space-y-3 text-sm">
-          {isBlockTime && (
-            <div className="flex items-start justify-between gap-4 text-[#152d5a]">
-              <p className="font-medium">{invoice.is_block_time_overage ? 'Block time overage' : 'Block time usage'}</p>
-              <div className="shrink-0 text-right">
-                <p className="font-medium text-emerald-600">
-                  {invoice.is_block_time_overage ? `$${baseAmount}` : 'Paid via package'}
-                </p>
-              </div>
-            </div>
-          )}
+          {isBlockTime ? (
+            <>
+              {blockTimeBreakdown?.hasOverage && (blockTimeBreakdown.overageAmountCents ?? 0) > 0 ? (
+                <div className="flex items-start justify-between gap-4 text-[#152d5a]">
+                  <div>
+                    <p className="font-medium">Block time overage</p>
+                    {blockTimeBreakdown.overageHours != null && blockTimeBreakdown.overageHours > 0 && blockTimeBreakdown.overageRateCents != null ? (
+                      <p className="mt-1 text-[12px] tabular-nums text-[#4b6390]">
+                        ${money(blockTimeBreakdown.overageRateCents ?? 0)} × {blockTimeBreakdown.overageHours.toFixed(1)} hrs = ${money(blockTimeBreakdown.overageAmountCents ?? 0)}
+                      </p>
+                    ) : null}
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <p className="font-medium tabular-nums text-[#152d5a]">
+                      ${money(blockTimeBreakdown.overageAmountCents ?? 0)}
+                    </p>
+                  </div>
+                </div>
+              ) : invoice.is_block_time_overage ? (
+                <div className="flex items-start justify-between gap-4 text-[#152d5a]">
+                  <p className="font-medium">Block time overage</p>
+                  <div className="shrink-0 text-right">
+                    <p className="font-medium tabular-nums text-[#152d5a]">
+                      ${money(invoice.base_amount_cents ?? invoice.subtotal_cents)}
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-start justify-between gap-4 text-[#152d5a]">
+                  <p className="font-medium">Block time usage</p>
+                  <div className="shrink-0 text-right">
+                    <p className="font-medium text-emerald-600">Paid via package</p>
+                  </div>
+                </div>
+              )}
 
-          {hasFlightDetails ? (
+              {(landingCharges.length > 0 || (landingCents != null && landingCents > 0)) && (
+                <div className="border-t border-[#152d5a]/10 pt-3">
+                  <div className="flex items-start justify-between gap-4 text-[#152d5a]">
+                    <div className="min-w-0 flex-1 pr-3">
+                      <p className="font-medium">Landing fees</p>
+                      {landingCharges.length > 0 ? (
+                        <p className="mt-1 text-[12px] leading-relaxed text-[#4b6390]">
+                          {landingAirportSummary}
+                        </p>
+                      ) : null}
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <p className="font-medium tabular-nums">${landingCalcTotal}</p>
+                      {landingCharges.length > 0 ? (
+                        <p className="mt-1 text-[12px] tabular-nums text-[#4b6390]">
+                          {landingCalcSummary} = ${landingCalcTotal}
+                        </p>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex items-start justify-between gap-4 border-t border-[#152d5a]/10 pt-3 font-semibold text-[#152d5a]">
+                <p>Flight total</p>
+                <div className="shrink-0 text-right">
+                  <p className="tabular-nums">${subtotal}</p>
+                  {blockTimeBreakdown?.hasOverage && (landingCharges.length > 0 || (landingCents != null && landingCents > 0)) ? (
+                    <p className="mt-1 text-[12px] font-medium tabular-nums text-[#4b6390]">
+                      ${money(blockTimeBreakdown.overageAmountCents ?? 0)} + ${landingCalcTotal} = ${subtotal}
+                    </p>
+                  ) : null}
+                </div>
+              </div>
+            </>
+          ) : hasFlightDetails ? (
             <>
               {flightChargeCents != null ? (
                 <div className="flex items-start justify-between gap-4 text-[#152d5a]">
@@ -321,12 +390,12 @@ export default function BookingPaymentCard({
                 </div>
               </div>
             </>
-          ) : !isBlockTime ? (
+          ) : (
             <div className="flex justify-between gap-4 text-[#152d5a]">
               <span>Flight Total (VDO + landings)</span>
               <span className="font-medium tabular-nums">${subtotal}</span>
             </div>
-          ) : null}
+          )}
 
           {invoice.advance_applied_cents > 0 && (
             <div className="flex justify-between gap-4 text-emerald-600">

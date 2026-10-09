@@ -13,10 +13,39 @@ export type FlightEvidenceItem = {
   fileSize?: number | null
 }
 
+export type FlightBlockTimeDetails = {
+  packageHoursDeducted: number
+  overageHours?: number
+  overageAmountCents?: number
+  landingFeesCents?: number
+  packageName?: string | null
+  isExpired?: boolean
+  isExhausted?: boolean
+  expiresAt?: string | null
+  packageRatePerHour?: number | null
+  landingInvoiceNumber?: string | null
+  usageInvoiceNumber?: string | null
+  overageInvoiceNumber?: string | null
+  detailLines?: { label: string; value: string }[]
+}
+
+export type FlightMultiDayMinimumDetails = {
+  isMultiDay: boolean
+  bookingDays: number
+  minimumHours: number
+  actualHours: number
+  billedHours: number
+  decision: 'enforce_minimum' | 'bill_actual'
+  isBelowMinimum: boolean
+  explanation: string
+}
+
 export type FlightDetailsData = {
   bookingId: string
   bookingReference: string
   bookingType: 'standard' | 'checkout'
+  isMultiDay?: boolean
+  daysCount?: number
   flightDate: string | null
   scheduledTimeRange?: string | null
   aircraft: {
@@ -52,7 +81,8 @@ export type FlightDetailsData = {
     paymentMethod?: string | null
     paidAt?: string | null
     isBlockTime?: boolean
-    blockTimeDetails?: { label: string; value: string }[] | null
+    blockTimeDetails?: FlightBlockTimeDetails | null
+    multiDayMinimum?: FlightMultiDayMinimumDetails | null
   }
   operational?: {
     customerNotes?: string | null

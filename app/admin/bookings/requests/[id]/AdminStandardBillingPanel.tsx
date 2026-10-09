@@ -63,6 +63,8 @@ type Props = {
   initialLandingCharges?: InitialLandingCharge[]
   startSuggestions: AircraftContinuityBaseline
   bookingSlotHours: number
+  scheduledStart?: string
+  scheduledEnd?: string
   activeBlockTime?: BlockTimeSummary | null
   defaultHourlyRate?: number
   redirectAfterSuccess?: string
@@ -92,6 +94,8 @@ export default function AdminStandardBillingPanel({
   initialLandingCharges = [],
   startSuggestions,
   bookingSlotHours,
+  scheduledStart,
+  scheduledEnd,
   activeBlockTime,
   defaultHourlyRate = PAYF_RATE_PER_HOUR,
   redirectAfterSuccess,
@@ -217,6 +221,8 @@ export default function AdminStandardBillingPanel({
   const vdoReading  = totals?.vdo_total ?? null
   const minimumVdoBilling = resolveMinimumVdoBilling({
     bookingSlotHours,
+    scheduledStart,
+    scheduledEnd,
     actualVdoHours: vdoReading,
     decision: minimumVdoDecision || null,
   })
@@ -588,13 +594,15 @@ export default function AdminStandardBillingPanel({
                           {activeBlockTime.hoursRemaining.toFixed(1)}h
                         </span>
                       </div>
-                      <div className="flex flex-wrap sm:flex-nowrap items-baseline justify-between gap-1">
-                        <span className="text-xs sm:text-sm text-[var(--admin-text-muted)]">Used this flight</span>
-                        <span className="hidden sm:inline flex-1 mx-2 border-b border-dotted border-[var(--admin-border)] translate-y-[-2px]" />
-                        <span className="text-xs sm:text-sm font-mono tabular-nums text-[var(--admin-text-muted)]">
-                          {packageDeductionHours.toFixed(1)}h <span className="ml-2 sm:ml-4">$0.00</span>
-                        </span>
-                      </div>
+                      {packageDeductionHours > 0 && (
+                        <div className="flex flex-wrap sm:flex-nowrap items-baseline justify-between gap-1">
+                          <span className="text-xs sm:text-sm text-[var(--admin-text-muted)]">Used this flight</span>
+                          <span className="hidden sm:inline flex-1 mx-2 border-b border-dotted border-[var(--admin-border)] translate-y-[-2px]" />
+                          <span className="text-xs sm:text-sm font-mono tabular-nums text-[var(--admin-text-muted)]">
+                            {packageDeductionHours.toFixed(1)}h <span className="ml-2 sm:ml-4">$0.00</span>
+                          </span>
+                        </div>
+                      )}
                       <div className="flex flex-wrap sm:flex-nowrap items-baseline justify-between gap-1">
                         <span className="text-xs sm:text-sm text-[var(--admin-text-muted)]">Remaining after</span>
                         <span className="hidden sm:inline flex-1 mx-2 border-b border-dotted border-[var(--admin-border)] translate-y-[-2px]" />

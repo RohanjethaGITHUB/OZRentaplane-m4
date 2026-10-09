@@ -79,13 +79,13 @@ export default async function CustomerBillingPage() {
       .order('deducted_at', { ascending: false }),
     supabase
       .from('invoices')
-      .select('id, invoice_number, total, created_at, pdf_url, status, payment_method')
+      .select('id, invoice_number, total, subtotal, gst_amount, created_at, paid_at, pdf_url, status, payment_method, booking_id')
       .eq('user_id', user.id)
       .eq('is_block_time_overage', true)
       .order('created_at', { ascending: false }),
     supabase
       .from('invoices')
-      .select('id, invoice_number, total, created_at, pdf_url, payment_method, booking_id, status')
+      .select('id, invoice_number, total, subtotal, gst_amount, created_at, paid_at, pdf_url, payment_method, booking_id, status')
       .eq('user_id', user.id)
       .eq('billing_mode', 'block_time')
       .eq('type', 'flight')
@@ -539,7 +539,7 @@ export default async function CustomerBillingPage() {
       card: paymentMethod === 'card' ? { brand: 'mastercard', last4: '7763' } : null,
       transactionId: bi.stripe_payment_intent_id || (isPaid ? `txn_${bi.id.slice(0, 10)}` : null),
       provider: paymentMethod === 'card' ? 'Stripe' : undefined,
-      pdfUrl: (isPaid || isSettled || isWaived) ? (bi.booking_id ? `/dashboard/bookings/${bi.booking_id}/invoice` : bi.pdf_url ?? null) : null,
+      pdfUrl: (isPaid || isSettled || isWaived) ? (bi.booking_id ? `/dashboard/bookings/${bi.booking_id}/invoice` : null) : null,
       payUrl: `/dashboard/bookings/${bi.booking_id}#payment`,
       items: [
         {
@@ -811,75 +811,208 @@ export default async function CustomerBillingPage() {
     }
   }
 
-  // E. Landing Fee Invoices
-  for (const li of landingInvoiceRows ?? []) {
-    const amount = Number(li.total || 0)
-    const subtotal = Math.round((amount / 1.1) * 100) / 100
-    const gst = Math.round((amount - subtotal) * 100) / 100
+  // E. Block-time Flight Invoices (Consolidated by booking_id into a single invoice entry)
+  const blockTimeFlightGroups = new Map<string, {
+    landingInvoices: any[]
+    overageInvoices: any[]
+  }>()
+  const standaloneBlockTimeInvoices: any[] = []
+
+  for (const li of (landingInvoiceRows ?? []) as any[]) {
+    if (li.booking_id) {
+      const g = blockTimeFlightGroups.get(li.booking_id) || { landingInvoices: [], overageInvoices: [] }
+      g.landingInvoices.push(li)
+      blockTimeFlightGroups.set(li.booking_id, g)
+    } else {
+      standaloneBlockTimeInvoices.push(li)
+    }
+  }
+
+  for (const ov of (overageRows ?? []) as any[]) {
+    if (ov.booking_id) {
+      const g = blockTimeFlightGroups.get(ov.booking_id) || { landingInvoices: [], overageInvoices: [] }
+      g.overageInvoices.push(ov)
+      blockTimeFlightGroups.set(ov.booking_id, g)
+    } else {
+      standaloneBlockTimeInvoices.push(ov)
+    }
+  }
+
+  for (const [bookingId, group] of Array.from(blockTimeFlightGroups.entries())) {
+    const li = group.landingInvoices[0] || null
+    const ov = group.overageInvoices[0] || null
+    const allInvs = [...group.landingInvoices, ...group.overageInvoices]
+    const primaryInv = li || ov || allInvs[0]
+
+    const b = bookingMap.get(bookingId)
+    const aircraft = one(b?.aircraft)
+    const rawName = aircraft?.display_name || 'Cessna 172'
+    const aircraftName = rawName.replace(/^VH-[A-Z0-9]+\s*([·—\-–]\s*)?/i, '').trim() || 'Cessna 172'
+    const reg = aircraft?.registration || 'VH-KZG'
+
+    const totalAmount = Math.round(allInvs.reduce((sum, inv) => sum + Number(inv.total || 0), 0) * 100) / 100
+    const gst = Math.round((totalAmount / 11) * 100) / 100
+    const subtotal = Math.round((totalAmount - gst) * 100) / 100
+
+    const isAllPaid = allInvs.every((inv) => inv.status === 'paid')
+    const isAnyPendingVerification = allInvs.some((inv) =>
+      inv.status === 'bank_transfer_pending_review' ||
+      inv.status === 'payment_verification_required' ||
+      pendingBkgSubByInvoice.has(inv.id) ||
+      pendingBkgSubByInvoice.has(bookingId)
+    )
+    const isAnyAwaiting = allInvs.some((inv) => inv.status === 'awaiting' || inv.status === 'payment_required')
+
+    let status: PaymentStatus = 'PENDING'
+    if (isAllPaid) status = 'PAID'
+    else if (isAnyPendingVerification) status = 'PAYMENT_VERIFICATION_PENDING'
+    else if (isAnyAwaiting) status = 'PENDING'
+    else if (allInvs.every((inv) => inv.status === 'waived')) status = 'WAIVED'
+    else if (allInvs.every((inv) => inv.status === 'settled')) status = 'SETTLED'
+
+    const paidAmount = isAllPaid
+      ? totalAmount
+      : allInvs.filter((inv) => inv.status === 'paid').reduce((sum, inv) => sum + Number(inv.total || 0), 0)
+    const outstandingAmount = isAllPaid ? 0 : Math.max(0, Math.round((totalAmount - paidAmount) * 100) / 100)
+
+    const paymentMethod: PaymentMethodType =
+      allInvs.some((inv) => inv.payment_method === 'bank_transfer')
+        ? 'bank_transfer'
+        : allInvs.some((inv) => inv.payment_method === 'stripe' || inv.payment_method === 'card')
+        ? 'card'
+        : 'bank_transfer'
+
+    let serviceName = 'Flight Charges'
+    if (li && ov) {
+      serviceName = 'Flight Overage & Landing Fee'
+    } else if (ov) {
+      serviceName = 'Flight Hour Overage'
+    } else if (li) {
+      serviceName = 'Landing Fee'
+    }
+
+    const items: Array<{ description: string; amount: number }> = []
+    const bkgUsage = (usageRows ?? []).find((u: any) => u.booking_id === bookingId)
+    if (bkgUsage && Number(bkgUsage.hours_deducted) > 0) {
+      items.push({
+        description: `Aircraft Hire — Block Time deduction (${Number(bkgUsage.hours_deducted).toFixed(1)} hrs deducted · $0.00 flight charge)`,
+        amount: 0,
+      })
+    }
+    if (ov) {
+      const ovHours = bkgUsage?.overflow_hours ? Number(bkgUsage.overflow_hours).toFixed(1) : ''
+      items.push({
+        description: ovHours ? `Flight hour overage (${ovHours} hrs)` : 'Flight hour overage settlement',
+        amount: Math.round(Number(ov.total || 0) * 100) / 100,
+      })
+    }
+    if (li) {
+      items.push({
+        description: 'Airport landing charge',
+        amount: Math.round(Number(li.total || 0) * 100) / 100,
+      })
+    }
+
+    const paidAtDate = primaryInv.paid_at || allInvs.find((inv) => inv.paid_at)?.paid_at || primaryInv.created_at
+
     allInvoices.push({
-      id: li.id,
-      invoiceNumber: li.invoice_number,
-      serviceName: 'Landing Fee',
+      id: primaryInv.id,
+      invoiceNumber: primaryInv.invoice_number,
+      bookingId,
+      bookingReference: b?.booking_reference || `BK-${bookingId.slice(0, 4).toUpperCase()}`,
+      aircraftRegistration: reg,
+      aircraftModel: aircraftName,
+      serviceName,
       serviceType: 'landing_fee',
-      date: li.created_at,
-      amount,
-      paidAmount: li.status === 'paid' ? amount : 0,
-      outstandingAmount: li.status === 'paid' ? 0 : amount,
+      date: primaryInv.created_at,
+      amount: totalAmount,
+      paidAmount,
+      outstandingAmount,
       currency: 'AUD',
-      status: li.status === 'paid' ? 'PAID' : 'PENDING',
+      status,
       settlementType: 'CUSTOMER_PAYMENT',
-      paymentMethod: li.payment_method === 'bank_transfer' ? 'bank_transfer' : 'card',
-      card: { brand: 'visa', last4: '4242' },
-      pdfUrl: li.pdf_url,
-      bookingId: li.booking_id,
-      payUrl: li.booking_id ? `/dashboard/bookings/${li.booking_id}#payment` : undefined,
-      items: [{ description: 'Landing fee charge', amount }],
+      paymentMethod,
+      card: paymentMethod === 'card' ? { brand: 'visa', last4: '4242' } : null,
+      pdfUrl: (isAllPaid || status === 'SETTLED' || status === 'WAIVED') ? `/dashboard/bookings/${bookingId}/invoice` : null,
+      payUrl: `/dashboard/bookings/${bookingId}#payment`,
+      items,
       subtotal,
       gst,
-      total: amount,
-      payments: li.status === 'paid' ? [{
-        id: `pmt-${li.id}`,
-        amount,
-        method: 'card',
-        settlementType: 'CUSTOMER_PAYMENT',
-        status: 'PAID',
-        paidAt: li.created_at,
-      }] : [],
+      total: totalAmount,
+      payments: isAllPaid
+        ? [
+            {
+              id: `pmt-${primaryInv.id}`,
+              amount: totalAmount,
+              method: paymentMethod,
+              settlementType: 'CUSTOMER_PAYMENT',
+              status: 'PAID',
+              paidAt: paidAtDate,
+            },
+          ]
+        : [],
+      timeline: [
+        ...(isAllPaid
+          ? [
+              {
+                id: `tl-1-${primaryInv.id}`,
+                title: 'Payment received',
+                description: `${formatDateFromISO(paidAtDate)} · ${
+                  paymentMethod === 'bank_transfer' ? 'Bank transfer' : 'Card payment'
+                }`,
+                timestamp: formatDashboardTimestamp(paidAtDate),
+                type: 'payment' as const,
+              },
+            ]
+          : []),
+        {
+          id: `tl-2-${primaryInv.id}`,
+          title: 'Invoice issued',
+          description: primaryInv.invoice_number,
+          timestamp: formatDashboardTimestamp(primaryInv.created_at),
+          type: 'invoice' as const,
+        },
+      ],
     })
   }
 
-  // F. Flight Hour Overage Invoices
-  for (const ov of overageRows ?? []) {
-    const amount = Number(ov.total || 0)
-    const subtotal = Math.round((amount / 1.1) * 100) / 100
-    const gst = Math.round((amount - subtotal) * 100) / 100
+  // Standalone block-time invoices without a booking_id (fallback)
+  for (const inv of standaloneBlockTimeInvoices) {
+    const amount = Number(inv.total || 0)
+    const gst = Math.round((amount / 11) * 100) / 100
+    const subtotal = Math.round((amount - gst) * 100) / 100
+    const isPaid = inv.status === 'paid'
+
     allInvoices.push({
-      id: ov.id,
-      invoiceNumber: ov.invoice_number,
-      serviceName: 'Flight Hour Overage',
-      serviceType: 'overage',
-      date: ov.created_at,
+      id: inv.id,
+      invoiceNumber: inv.invoice_number,
+      serviceName: inv.is_block_time_overage ? 'Flight Hour Overage' : 'Landing Fee',
+      serviceType: inv.is_block_time_overage ? 'overage' : 'landing_fee',
+      date: inv.created_at,
       amount,
-      paidAmount: ov.status === 'paid' ? amount : 0,
-      outstandingAmount: ov.status === 'paid' ? 0 : amount,
+      paidAmount: isPaid ? amount : 0,
+      outstandingAmount: isPaid ? 0 : amount,
       currency: 'AUD',
-      status: ov.status === 'paid' ? 'PAID' : 'PENDING',
+      status: isPaid ? 'PAID' : 'PENDING',
       settlementType: 'CUSTOMER_PAYMENT',
-      paymentMethod: 'card',
+      paymentMethod: inv.payment_method === 'bank_transfer' ? 'bank_transfer' : 'card',
       card: { brand: 'visa', last4: '4242' },
-      pdfUrl: ov.pdf_url,
-      items: [{ description: 'Flight hour overage settlement', amount }],
+      items: [{ description: inv.is_block_time_overage ? 'Flight hour overage settlement' : 'Landing fee charge', amount }],
       subtotal,
       gst,
       total: amount,
-      payments: ov.status === 'paid' ? [{
-        id: `pmt-${ov.id}`,
-        amount,
-        method: 'card',
-        settlementType: 'CUSTOMER_PAYMENT',
-        status: 'PAID',
-        paidAt: ov.created_at,
-      }] : [],
+      payments: isPaid
+        ? [
+            {
+              id: `pmt-${inv.id}`,
+              amount,
+              method: inv.payment_method === 'bank_transfer' ? 'bank_transfer' : 'card',
+              settlementType: 'CUSTOMER_PAYMENT',
+              status: 'PAID',
+              paidAt: inv.paid_at || inv.created_at,
+            },
+          ]
+        : [],
     })
   }
 

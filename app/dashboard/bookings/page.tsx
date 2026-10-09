@@ -415,12 +415,19 @@ export default async function CustomerBookingsPage() {
     .filter((booking) => booking.booking_type === 'checkout')
     .map((booking) => booking.id)
 
-  const [{ data: standardInvoiceRows }, { data: checkoutInvoiceRows }] = await Promise.all([
+  const [{ data: standardInvoiceRows }, { data: blockTimeInvoiceRows }, { data: checkoutInvoiceRows }] = await Promise.all([
     standardBookingIds.length > 0
       ? supabase
           .from('booking_invoices')
           .select('booking_id, status, pdf_url, invoice_number')
           .in('booking_id', standardBookingIds)
+      : Promise.resolve({ data: null, error: null }),
+    standardBookingIds.length > 0
+      ? supabase
+          .from('invoices')
+          .select('booking_id, status, pdf_url, invoice_number')
+          .in('booking_id', standardBookingIds)
+          .eq('type', 'flight')
       : Promise.resolve({ data: null, error: null }),
     checkoutBookingIds.length > 0
       ? supabase
@@ -437,6 +444,15 @@ export default async function CustomerBookingsPage() {
       pdf_url: row.pdf_url,
       invoice_number: row.invoice_number,
     })
+  }
+  for (const row of (blockTimeInvoiceRows ?? []) as { booking_id: string; status: string; pdf_url: string | null; invoice_number: string }[]) {
+    if (!standardInvoiceByBookingId.has(row.booking_id) || standardInvoiceByBookingId.get(row.booking_id)?.status !== 'paid') {
+      standardInvoiceByBookingId.set(row.booking_id, {
+        status: row.status,
+        pdf_url: row.pdf_url,
+        invoice_number: row.invoice_number,
+      })
+    }
   }
 
   const checkoutInvoiceByBookingId = new Map<string, { status: string; pdf_url: string | null; invoice_number: string }>()
@@ -487,37 +503,56 @@ export default async function CustomerBookingsPage() {
     booking_id: string | null
     status: string
   }[]
+  const pendingBankTransferBookingIds = new Set<string>()
+  const pendingBankTransferInvoiceIds = new Set<string>()
+  for (const row of ((pendingBankTransferRows ?? []) as Array<{ booking_id: string | null; invoice_id: string | null }>)) {
+    if (row.booking_id) pendingBankTransferBookingIds.add(row.booking_id)
+    if (row.invoice_id) pendingBankTransferInvoiceIds.add(row.invoice_id)
+  }
+
+  const isInvoicePendingReview = (inv: { id: string; booking_id: string | null; status: string }) =>
+    inv.status === 'bank_transfer_pending_review' ||
+    pendingBankTransferInvoiceIds.has(inv.id) ||
+    (Boolean(inv.booking_id) && pendingBankTransferBookingIds.has(inv.booking_id!))
+
+  const unpaidOverageInvoices = outstandingOverageInvoices.filter((inv) => !isInvoicePendingReview(inv))
+  const pendingReviewOverageInvoices = outstandingOverageInvoices.filter(isInvoicePendingReview)
+  const unpaidOverageTotal = unpaidOverageInvoices.reduce((sum, row) => sum + Number(row.total || 0), 0)
+
+  const unpaidLandingInvoices = outstandingLandingInvoices.filter((inv) => !isInvoicePendingReview(inv))
+  const pendingReviewLandingInvoices = outstandingLandingInvoices.filter(isInvoicePendingReview)
+  const unpaidLandingTotal = unpaidLandingInvoices.reduce((sum, row) => sum + Number(row.total || 0), 0)
+
   const outstandingLandingTotal = outstandingLandingInvoices.reduce((sum, row) => sum + Number(row.total || 0), 0)
   const outstandingOverageTotal = outstandingOverageInvoices.reduce((sum, row) => sum + Number(row.total || 0), 0)
 
-  const pendingBankTransferBookingIds = new Set<string>()
-  for (const row of ((pendingBankTransferRows ?? []) as Array<{ booking_id: string | null; invoice_id: string | null }>)) {
-    if (row.booking_id) pendingBankTransferBookingIds.add(row.booking_id)
+  const blockTimePayInvoiceByBookingId = new Map<string, { id: string; invoice_number: string; total: number; kind: 'landing_fee' | 'overage'; status: string }>()
+  const allOutstandingBlockTimeInvoices = [...outstandingOverageInvoices, ...outstandingLandingInvoices]
+  type BTInvoiceItem = { id: string; invoice_number: string; total: number; booking_id: string | null; status: string }
+  const blockTimeInvoicesByBooking = new Map<string, BTInvoiceItem[]>()
+  for (const inv of allOutstandingBlockTimeInvoices) {
+    if (!inv.booking_id) continue
+    const list = blockTimeInvoicesByBooking.get(inv.booking_id) || []
+    list.push(inv)
+    blockTimeInvoicesByBooking.set(inv.booking_id, list)
   }
 
-  const blockTimePayInvoiceByBookingId = new Map<string, { id: string; invoice_number: string; total: number; kind: 'landing_fee' | 'overage'; status: string }>()
-  for (const invoice of outstandingLandingInvoices) {
-    if (!invoice.booking_id || blockTimePayInvoiceByBookingId.has(invoice.booking_id)) continue
-    const isPendingReview = invoice.status === 'bank_transfer_pending_review' || pendingBankTransferBookingIds.has(invoice.booking_id)
-    blockTimePayInvoiceByBookingId.set(invoice.booking_id, {
-      id: invoice.id,
-      invoice_number: invoice.invoice_number,
-      total: Number(invoice.total),
-      kind: 'landing_fee',
-      status: isPendingReview ? 'bank_transfer_pending_review' : invoice.status,
+  Array.from(blockTimeInvoicesByBooking.entries()).forEach(([bId, invList]: [string, BTInvoiceItem[]]) => {
+    const isPendingReview = invList.some((inv: BTInvoiceItem) => isInvoicePendingReview(inv))
+    const ovInv = invList.find((i: BTInvoiceItem) => outstandingOverageInvoices.some((o) => o.id === i.id))
+    const totalAmount = invList.reduce((sum: number, i: BTInvoiceItem) => sum + Number(i.total || 0), 0)
+    const primary = ovInv || invList[0]
+
+    blockTimePayInvoiceByBookingId.set(bId, {
+      id: primary.id,
+      invoice_number: invList.length > 1
+        ? invList.map((i: BTInvoiceItem) => i.invoice_number).join(' / ')
+        : primary.invoice_number,
+      total: totalAmount,
+      kind: ovInv ? 'overage' : 'landing_fee',
+      status: isPendingReview ? 'bank_transfer_pending_review' : primary.status,
     })
-  }
-  for (const invoice of outstandingOverageInvoices) {
-    if (!invoice.booking_id || blockTimePayInvoiceByBookingId.has(invoice.booking_id)) continue
-    const isPendingReview = invoice.status === 'bank_transfer_pending_review' || pendingBankTransferBookingIds.has(invoice.booking_id)
-    blockTimePayInvoiceByBookingId.set(invoice.booking_id, {
-      id: invoice.id,
-      invoice_number: invoice.invoice_number,
-      total: Number(invoice.total),
-      kind: 'overage',
-      status: isPendingReview ? 'bank_transfer_pending_review' : invoice.status,
-    })
-  }
+  })
 
   const rowsWithInvoices = rows.map((booking) => ({
     ...booking,
@@ -1294,17 +1329,26 @@ export default async function CustomerBookingsPage() {
                             VIEW DETAILS
                             <span className="material-symbols-outlined text-[16px] ml-2">chevron_right</span>
                           </Link>
-                          {Boolean(bookingInvoice && ['paid', 'settled', 'waived'].includes(bookingInvoice.status)) && (
-                            <a
-                              href={`/dashboard/bookings/${booking.id}/invoice`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="flex items-center justify-center gap-1.5 whitespace-nowrap bg-white hover:bg-[#f0f6ff] text-[#152d5a] border border-[#152d5a]/20 text-[11px] font-bold tracking-[0.04em] px-3.5 py-2 rounded-xl transition-colors shadow-sm"
-                            >
-                              <span className="material-symbols-outlined text-[15px] text-[#1a4fd6]">download</span>
-                              Download Invoice
-                            </a>
-                          )}
+                          {(() => {
+                            const isInvoiceSettled = Boolean(bookingInvoice && ['paid', 'settled', 'waived'].includes(bookingInvoice.status))
+                            const isBlockTimeInvoiceSettled = !blockTimePayInvoice || ['paid', 'settled', 'waived'].includes((blockTimePayInvoice as any).status)
+                            const isBookingPaymentPending = booking.status === 'payment_pending' || booking.status === 'checkout_payment_required'
+                            const canDownloadInvoice = isInvoiceSettled && isBlockTimeInvoiceSettled && !isBookingPaymentPending
+
+                            if (!canDownloadInvoice) return null
+
+                            return (
+                              <a
+                                href={`/dashboard/bookings/${booking.id}/invoice`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-center justify-center gap-1.5 whitespace-nowrap bg-white hover:bg-[#f0f6ff] text-[#152d5a] border border-[#152d5a]/20 text-[11px] font-bold tracking-[0.04em] px-3.5 py-2 rounded-xl transition-colors shadow-sm"
+                              >
+                                <span className="material-symbols-outlined text-[15px] text-[#1a4fd6]">download</span>
+                                Download Invoice
+                              </a>
+                            )
+                          })()}
                           {(() => {
                             const isCheckoutPayRequired =
                               booking.booking_type === 'checkout' &&
@@ -1315,9 +1359,12 @@ export default async function CustomerBookingsPage() {
 
                             const isRentalPayRequired =
                               booking.booking_type !== 'checkout' &&
-                              Boolean(bookingInvoice && bookingInvoice.status !== 'waived' && booking.status === 'payment_pending')
+                              (Boolean(bookingInvoice && bookingInvoice.status !== 'waived' && booking.status === 'payment_pending') ||
+                               Boolean(blockTimePayInvoice))
                             const isRentalAwaitingReview =
-                              isRentalPayRequired && bookingInvoice?.status === 'bank_transfer_pending_review'
+                              isRentalPayRequired &&
+                              (bookingInvoice?.status === 'bank_transfer_pending_review' ||
+                               blockTimePayInvoice?.status === 'bank_transfer_pending_review')
 
                             const showPayInvoice = isCheckoutPayRequired || isRentalPayRequired
                             if (!showPayInvoice) return null
@@ -1342,25 +1389,6 @@ export default async function CustomerBookingsPage() {
                               </Link>
                             )
                           })()}
-                          {booking.booking_type !== 'checkout' && blockTimePayInvoice && (
-                            <Link
-                              href={`/dashboard/bookings/${booking.id}#payment`}
-                              className={`flex items-center justify-center gap-1.5 whitespace-nowrap text-[11px] font-bold tracking-[0.08em] uppercase px-4 py-2 rounded-xl transition-colors ${
-                                blockTimePayInvoice.status === 'bank_transfer_pending_review'
-                                  ? 'border border-[#152d5a]/20 bg-white text-[#152d5a] hover:bg-[#f0f6ff]'
-                                  : 'bg-[#f59e0b] hover:bg-[#d97706] text-[#0d1b3e]'
-                              }`}
-                            >
-                              <span className="material-symbols-outlined text-[14px]">
-                                {blockTimePayInvoice.status === 'bank_transfer_pending_review' ? 'hourglass_empty' : 'payments'}
-                              </span>
-                              {blockTimePayInvoice.status === 'bank_transfer_pending_review'
-                                ? 'View Payment'
-                                : blockTimePayInvoice.kind === 'landing_fee'
-                                ? 'Pay Landing Fee'
-                                : 'Pay Overage'}
-                            </Link>
-                          )}
                         </div>
                       </div>
                     )
@@ -1394,7 +1422,7 @@ export default async function CustomerBookingsPage() {
           </div>
 
           <div className="w-full lg:w-[300px] flex-shrink-0 flex flex-col gap-6">
-            {outstandingOverageInvoices.length > 0 ? (
+            {unpaidOverageInvoices.length > 0 ? (
               <div className="bg-white border border-amber-200 rounded-2xl p-5">
                 <div className="flex items-center gap-2 mb-3">
                   <span className="material-symbols-outlined text-[16px] text-amber-500">warning</span>
@@ -1402,56 +1430,60 @@ export default async function CustomerBookingsPage() {
                 </div>
                 <p className="text-[15px] font-semibold text-amber-700">Block time overage unpaid</p>
                 <p className="text-[12px] text-[#4b6390] mt-1 mb-3">
-                  Your flight exceeded your block time balance by ${outstandingOverageTotal.toFixed(2)}. Pay the overage to book again.
+                  Your flight exceeded your block time balance by ${unpaidOverageTotal.toFixed(2)}. Pay the overage to book again.
                 </p>
                 <Link
-                  href="/dashboard/pricing"
+                  href={unpaidOverageInvoices[0]?.booking_id ? `/dashboard/bookings/${unpaidOverageInvoices[0].booking_id}#payment` : '/dashboard/pricing'}
                   className="inline-flex items-center gap-2 bg-[#f59e0b] hover:bg-[#d97706] text-[#0d1b3e] font-semibold text-[13px] px-4 py-2.5 rounded-xl transition-colors w-full justify-center"
                 >
                   <span className="material-symbols-outlined text-[15px]">credit_card</span>
                   Pay Overage
                 </Link>
               </div>
-            ) : outstandingLandingInvoices.length > 0 ? (
-              (outstandingLandingInvoices.some(inv => inv.status === 'bank_transfer_pending_review') || (outstandingLandingInvoices[0]?.booking_id && pendingBankTransferBookingIds.has(outstandingLandingInvoices[0].booking_id))) ? (
-                <div className="bg-white border border-[#152d5a]/10 rounded-2xl p-5">
-                  <div className="flex items-center gap-2 mb-3">
-                    <span className="material-symbols-outlined text-[16px] text-blue-500">hourglass_empty</span>
-                    <span className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[#4b6390]">Payment Status</span>
-                  </div>
-                  <p className="text-[15px] font-semibold text-[#1a4fd6]">Payment proof submitted</p>
-                  <p className="text-[12px] text-[#4b6390] mt-1 mb-3">Our team is reviewing your landing fee payment. We'll confirm within 2–24 hours.</p>
-                  <Link
-                    href={outstandingLandingInvoices[0]?.booking_id ? `/dashboard/bookings/${outstandingLandingInvoices[0].booking_id}#payment` : '/dashboard/bookings'}
-                    className="inline-flex items-center gap-2 border border-[#152d5a]/20 bg-white hover:bg-[#f0f6ff] text-[#152d5a] font-semibold text-[13px] px-4 py-2.5 rounded-xl transition-colors w-full justify-center"
-                  >
-                    <span className="material-symbols-outlined text-[15px]">visibility</span>
-                    View Payment
-                  </Link>
+            ) : unpaidLandingInvoices.length > 0 ? (
+              <div className="bg-white border border-amber-200 rounded-2xl p-5">
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="material-symbols-outlined text-[16px] text-amber-500">payments</span>
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[#4b6390]">Payment Status</span>
                 </div>
-              ) : (
-                <div className="bg-white border border-amber-200 rounded-2xl p-5">
-                  <div className="flex items-center gap-2 mb-3">
-                    <span className="material-symbols-outlined text-[16px] text-amber-500">payments</span>
-                    <span className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[#4b6390]">Payment Status</span>
-                  </div>
-                  <p className="text-[15px] font-semibold text-amber-700">Landing fee payment required</p>
-                  <p className="text-[12px] text-[#4b6390] mt-1 mb-3">
-                    Flight hours are settled from block time. ${outstandingLandingTotal.toFixed(2)} in landing fees
-                    {outstandingLandingInvoices.length === 1
-                      ? ` (invoice ${outstandingLandingInvoices[0].invoice_number})`
-                      : ` across ${outstandingLandingInvoices.length} invoices`}{' '}
-                    still needs payment.
-                  </p>
-                  <Link
-                    href={outstandingLandingInvoices[0]?.booking_id ? `/dashboard/bookings/${outstandingLandingInvoices[0].booking_id}#payment` : '/dashboard/purchases'}
-                    className="inline-flex items-center gap-2 bg-[#f59e0b] hover:bg-[#d97706] text-[#0d1b3e] font-semibold text-[13px] px-4 py-2.5 rounded-xl transition-colors w-full justify-center"
-                  >
-                    <span className="material-symbols-outlined text-[15px]">credit_card</span>
-                    Pay Landing Fee
-                  </Link>
+                <p className="text-[15px] font-semibold text-amber-700">Landing fee payment required</p>
+                <p className="text-[12px] text-[#4b6390] mt-1 mb-3">
+                  Flight hours are settled from block time. ${unpaidLandingTotal.toFixed(2)} in landing fees
+                  {unpaidLandingInvoices.length === 1
+                    ? ` (invoice ${unpaidLandingInvoices[0].invoice_number})`
+                    : ` across ${unpaidLandingInvoices.length} invoices`}{' '}
+                  still needs payment.
+                </p>
+                <Link
+                  href={unpaidLandingInvoices[0]?.booking_id ? `/dashboard/bookings/${unpaidLandingInvoices[0].booking_id}#payment` : '/dashboard/purchases'}
+                  className="inline-flex items-center gap-2 bg-[#f59e0b] hover:bg-[#d97706] text-[#0d1b3e] font-semibold text-[13px] px-4 py-2.5 rounded-xl transition-colors w-full justify-center"
+                >
+                  <span className="material-symbols-outlined text-[15px]">credit_card</span>
+                  Pay Landing Fee
+                </Link>
+              </div>
+            ) : (pendingReviewOverageInvoices.length > 0 || pendingReviewLandingInvoices.length > 0) ? (
+              <div className="bg-white border border-[#152d5a]/10 rounded-2xl p-5">
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="material-symbols-outlined text-[16px] text-blue-500">hourglass_empty</span>
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[#4b6390]">Payment Status</span>
                 </div>
-              )
+                <p className="text-[15px] font-semibold text-[#1a4fd6]">Payment proof submitted</p>
+                <p className="text-[12px] text-[#4b6390] mt-1 mb-3">
+                  Our team is reviewing your flight payment. We&apos;ll confirm within 2–24 hours.
+                </p>
+                <Link
+                  href={
+                    (pendingReviewOverageInvoices[0] || pendingReviewLandingInvoices[0])?.booking_id
+                      ? `/dashboard/bookings/${(pendingReviewOverageInvoices[0] || pendingReviewLandingInvoices[0]).booking_id}#payment`
+                      : '/dashboard/bookings'
+                  }
+                  className="inline-flex items-center gap-2 border border-[#152d5a]/20 bg-white hover:bg-[#f0f6ff] text-[#152d5a] font-semibold text-[13px] px-4 py-2.5 rounded-xl transition-colors w-full justify-center"
+                >
+                  <span className="material-symbols-outlined text-[15px]">visibility</span>
+                  View Payment
+                </Link>
+              </div>
             ) : (
               <div className="bg-white border border-[#152d5a]/10 rounded-2xl p-5">
                 <div className="flex items-center gap-2 mb-3">
@@ -1528,7 +1560,7 @@ export default async function CustomerBookingsPage() {
                         href={`/dashboard/bookings/${row.id}#payment`}
                         className="text-[11px] font-semibold text-[#f59e0b] hover:underline mt-1 block"
                       >
-                        {row.blockTimePayInvoice?.kind === 'landing_fee' ? 'Pay landing fee →' : 'Pay invoice →'}
+                        Pay invoice →
                       </Link>
                     )
                   )}
@@ -1537,7 +1569,7 @@ export default async function CustomerBookingsPage() {
                       href={`/dashboard/bookings/${row.id}#payment`}
                       className="text-[11px] font-semibold text-[#f59e0b] hover:underline mt-1 block"
                     >
-                      {row.blockTimePayInvoice.kind === 'landing_fee' ? 'Pay landing fee →' : 'Pay invoice →'}
+                      Pay invoice →
                     </Link>
                   )}
                 </div>

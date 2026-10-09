@@ -215,12 +215,14 @@ export default function CustomerPaymentsInvoicesClient({
 
       setDownloadingId(inv.id)
       try {
-        const downloadUrl = inv.pdfUrl
-          ? inv.pdfUrl
-          : inv.bookingId
+        const downloadUrl = inv.bookingId
           ? `/dashboard/bookings/${inv.bookingId}/invoice`
           : (inv.serviceType === 'package' || inv.invoiceNumber.startsWith('PKG-'))
           ? `/dashboard/purchases/${inv.id}/invoice`
+          : inv.id
+          ? `/dashboard/invoices/${inv.invoiceNumber || inv.id}`
+          : inv.pdfUrl
+          ? inv.pdfUrl
           : null
 
         if (downloadUrl) {

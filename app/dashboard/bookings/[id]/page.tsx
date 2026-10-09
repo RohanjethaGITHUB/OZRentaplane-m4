@@ -396,6 +396,12 @@ function NextActionCard({
     status: string
     payment_method: string | null
     is_block_time_overage: boolean
+    has_overage?: boolean
+    has_landing?: boolean
+    overage_amount_cents?: number
+    landing_amount_cents?: number
+    overage_hours?: number
+    overage_rate_cents?: number
   } | null
   blockTimeBankDetails?: { bankName?: string; accountName: string; bsb: string; accountNumber: string } | null
   cancellationRequest?:     { status: string; charge_amount_cents: number | null; customer_message: string | null } | null
@@ -574,6 +580,8 @@ function NextActionCard({
             id: blockTimePayInvoice.id,
             invoice_number: blockTimePayInvoice.invoice_number,
             subtotal_cents: btAmountCents,
+            base_amount_cents: blockTimePayInvoice.overage_amount_cents ?? (blockTimePayInvoice.is_block_time_overage ? btAmountCents : 0),
+            landing_subtotal_cents: blockTimePayInvoice.landing_amount_cents ?? 0,
             advance_applied_cents: 0,
             stripe_amount_due_cents: btAmountCents,
             total_paid_cents: 0,
@@ -581,6 +589,14 @@ function NextActionCard({
             status: blockTimePayInvoice.status,
             payment_method: blockTimePayInvoice.payment_method,
             is_block_time_overage: blockTimePayInvoice.is_block_time_overage,
+          }}
+          blockTimeBreakdown={{
+            hasOverage: blockTimePayInvoice.has_overage,
+            hasLanding: blockTimePayInvoice.has_landing,
+            overageAmountCents: blockTimePayInvoice.overage_amount_cents,
+            landingAmountCents: blockTimePayInvoice.landing_amount_cents,
+            overageHours: blockTimePayInvoice.overage_hours,
+            overageRateCents: blockTimePayInvoice.overage_rate_cents,
           }}
           landingCharges={invoiceLandingCharges}
           bankTransferSubmission={standardBankTransferSub}
@@ -1556,13 +1572,19 @@ export default async function BookingDetailPage({ params, searchParams }: PagePr
     status: string
     payment_method: string | null
     is_block_time_overage: boolean
+    has_overage: boolean
+    has_landing: boolean
+    overage_amount_cents: number
+    landing_amount_cents: number
+    overage_hours: number
+    overage_rate_cents: number
   }
   let blockTimePayInvoice: BlockTimePayInvoice | null = null
   let blockTimeBankDetails: { bankName?: string; accountName: string; bsb: string; accountNumber: string } | null = null
   if (bookingType === 'standard' && (status === 'completed' || status === 'post_flight_approved' || status === 'payment_pending')) {
-    const { data: btInvoice } = await supabase
+    const { data: btInvoices } = await supabase
       .from('invoices')
-      .select('id, invoice_number, total, status, payment_method, is_block_time_overage')
+      .select('id, invoice_number, total, status, payment_method, is_block_time_overage, invoice_line_items(type, description, quantity, unit_price, amount)')
       .eq('booking_id', booking.id)
       .eq('user_id', user.id)
       .eq('billing_mode', 'block_time')
@@ -1570,11 +1592,40 @@ export default async function BookingDetailPage({ params, searchParams }: PagePr
       .in('status', ['awaiting', 'bank_transfer_pending_review'])
       .order('is_block_time_overage', { ascending: false })
       .order('created_at', { ascending: true })
-      .limit(1)
-      .maybeSingle()
-    blockTimePayInvoice = btInvoice as BlockTimePayInvoice | null
 
-    if (blockTimePayInvoice) {
+    if (btInvoices && btInvoices.length > 0) {
+      const overageInv = btInvoices.find((i) => i.is_block_time_overage)
+      const landingInv = btInvoices.find((i) => !i.is_block_time_overage)
+
+      const overageLine = (overageInv as any)?.invoice_line_items?.find((l: any) => l.type === 'overflow_hours' || l.type === 'flight_hours')
+      const overageHours = Number(overageLine?.quantity) || 0
+      const overageRateCents = Math.round((Number(overageLine?.unit_price) || (activePackage ? Number(activePackage.rate_per_hour) : 320)) * 100)
+      const overageAmountCents = overageLine?.amount != null
+        ? Math.round(Number(overageLine.amount) * 100)
+        : (overageHours > 0 ? Math.round(overageHours * overageRateCents) : (overageInv ? Math.round(Number(overageInv.total) * 100) : 0))
+
+      const landingAmountCents = landingInv ? Math.round(Number(landingInv.total) * 100) : 0
+
+      const primaryInv = overageInv || landingInv || btInvoices[0]
+      const combinedTotalCents = (overageInv ? overageAmountCents : 0) + (landingInv ? landingAmountCents : 0)
+
+      blockTimePayInvoice = {
+        id: primaryInv.id,
+        invoice_number: overageInv && landingInv
+          ? `${overageInv.invoice_number} / ${landingInv.invoice_number}`
+          : primaryInv.invoice_number,
+        total: combinedTotalCents / 100,
+        status: btInvoices.some((i) => i.status === 'bank_transfer_pending_review') ? 'bank_transfer_pending_review' : primaryInv.status,
+        payment_method: primaryInv.payment_method,
+        is_block_time_overage: Boolean(overageInv),
+        has_overage: Boolean(overageInv),
+        has_landing: Boolean(landingInv),
+        overage_amount_cents: overageAmountCents,
+        landing_amount_cents: landingAmountCents,
+        overage_hours: overageHours,
+        overage_rate_cents: overageRateCents,
+      }
+
       const name = PAYMENT_CONFIG.BANK_ACCOUNT_NAME
       const bsb = PAYMENT_CONFIG.BANK_BSB
       const acct = PAYMENT_CONFIG.BANK_ACCOUNT_NUMBER
@@ -1583,11 +1634,12 @@ export default async function BookingDetailPage({ params, searchParams }: PagePr
         blockTimeBankDetails = { bankName: bank, accountName: name, bsb, accountNumber: acct }
       }
 
+      const invoiceIds = btInvoices.map((i) => i.id)
       const [{ data: bSub }, { data: flightRec }] = await Promise.all([
         supabase
           .from('booking_bank_transfer_submissions')
           .select('id, status')
-          .eq('invoice_id', blockTimePayInvoice.id)
+          .or(`invoice_id.in.(${invoiceIds.join(',')}),booking_id.eq.${booking.id}`)
           .order('submitted_at', { ascending: false })
           .limit(1)
           .maybeSingle(),
@@ -1628,7 +1680,9 @@ export default async function BookingDetailPage({ params, searchParams }: PagePr
 
   if (blockTimePayInvoice) {
     cfg.label = 'Payment Required'
-    cfg.sublabel = blockTimePayInvoice.is_block_time_overage
+    cfg.sublabel = blockTimePayInvoice.has_overage && blockTimePayInvoice.has_landing
+      ? 'Overage and landing fee invoices unpaid'
+      : blockTimePayInvoice.is_block_time_overage
       ? 'Overage invoice unpaid'
       : 'Landing fee invoice unpaid'
     cfg.color = 'text-orange-400'

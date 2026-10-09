@@ -123,6 +123,30 @@ export function AdminFlightDetailsModal({
                 <span className="inline-flex items-center gap-1 rounded-md bg-blue-500/25 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider text-blue-200 border border-blue-400/30">
                   {data.bookingType === 'checkout' ? 'Checkout Flight' : 'Standard Flight'}
                 </span>
+                {data.isMultiDay && (
+                  <span className="inline-flex items-center gap-1 rounded-md bg-indigo-500/25 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider text-indigo-200 border border-indigo-400/30">
+                    Multi-Day ({data.daysCount || 2} days)
+                  </span>
+                )}
+                {data.pricing.multiDayMinimum?.isBelowMinimum && (
+                  <span className="inline-flex items-center gap-1 rounded-md bg-amber-500/25 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider text-amber-200 border border-amber-400/30">
+                    {data.pricing.multiDayMinimum.decision === 'enforce_minimum'
+                      ? '4h/Day Min Enforced'
+                      : 'Actual Hours Approved'}
+                  </span>
+                )}
+                {data.pricing.isBlockTime ? (
+                  <span className="inline-flex items-center gap-1 rounded-md bg-purple-500/25 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider text-purple-200 border border-purple-400/30">
+                    Prepaid Package
+                    {data.pricing.blockTimeDetails?.overageHours && data.pricing.blockTimeDetails.overageHours > 0
+                      ? ' (Overage)'
+                      : ''}
+                  </span>
+                ) : data.pricing.blockTimeDetails?.isExpired ? (
+                  <span className="inline-flex items-center gap-1 rounded-md bg-rose-500/25 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider text-rose-200 border border-rose-400/30">
+                    Package Expired
+                  </span>
+                ) : null}
                 <span className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider ${statusBadge.bg}`}>
                   <span className="material-symbols-outlined text-[12px]">{statusBadge.icon}</span>
                   {statusBadge.label}
@@ -155,11 +179,11 @@ export function AdminFlightDetailsModal({
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">Pilot in Command</p>
                 <p className="font-semibold text-sm text-[#0f2747]">{data.pilot.name}</p>
-                {data.pilot.arn && (
-                  <p className="text-slate-600 font-mono mt-0.5">ARN: {data.pilot.arn}</p>
-                )}
                 {data.pilot.email && (
                   <p className="text-slate-600 truncate mt-0.5">{data.pilot.email}</p>
+                )}
+                {data.pilot.phone && (
+                  <p className="text-slate-600 font-medium mt-0.5">{data.pilot.phone}</p>
                 )}
               </div>
               <div>
@@ -299,36 +323,177 @@ export function AdminFlightDetailsModal({
               </div>
 
               <div className="space-y-2 text-xs">
-                {/* Flight Hours Calculation with 'X' multiplication */}
-                <div className="flex items-center justify-between py-1">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-slate-700 font-medium">Aircraft Flight Charge:</span>
-                    <span className="font-bold text-slate-900">
-                      {data.pricing.billableHours.toFixed(1)} hrs X {formatCurrency(data.pricing.hourlyRateCents)}/hr
+                {/* Multi-Day Rental Policy Notice */}
+                {data.pricing.multiDayMinimum && data.pricing.multiDayMinimum.isBelowMinimum && (
+                  <div
+                    className={`rounded-lg p-2.5 text-xs flex items-start gap-2 border ${
+                      data.pricing.multiDayMinimum.decision === 'enforce_minimum'
+                        ? 'bg-amber-50 border-amber-300 text-amber-950'
+                        : 'bg-blue-50 border-blue-200 text-blue-950'
+                    }`}
+                  >
+                    <span
+                      className={`material-symbols-outlined text-[16px] mt-0.5 shrink-0 ${
+                        data.pricing.multiDayMinimum.decision === 'enforce_minimum' ? 'text-amber-700' : 'text-blue-700'
+                      }`}
+                    >
+                      {data.pricing.multiDayMinimum.decision === 'enforce_minimum' ? 'gavel' : 'verified'}
                     </span>
+                    <div>
+                      <p className="font-bold text-[11px] uppercase tracking-wider">
+                        {data.pricing.multiDayMinimum.decision === 'enforce_minimum'
+                          ? 'Multi-Day Rental Policy (4h/day Minimum Enforced)'
+                          : 'Multi-Day Rental Policy (Actual Hours Approved)'}
+                      </p>
+                      <p className="text-[11px] mt-0.5 opacity-90 leading-relaxed">
+                        {data.pricing.multiDayMinimum.explanation}
+                      </p>
+                    </div>
                   </div>
-                  <span className="font-mono font-bold tabular-nums text-slate-900">
-                    {formatCurrency(data.pricing.flightAmountCents)}
-                  </span>
-                </div>
+                )}
 
-                {/* Landing Fees */}
-                <div className="flex items-center justify-between py-1">
-                  <span className="text-slate-700 font-medium">
-                    Airport Landing Fees ({data.landings.totalLandings} landing{data.landings.totalLandings === 1 ? '' : 's'}):
-                  </span>
-                  <span className="font-mono font-bold tabular-nums text-slate-900">
-                    {formatCurrency(data.pricing.landingSubtotalCents)}
-                  </span>
-                </div>
+                {/* Prepaid Package Expired Notice */}
+                {data.pricing.blockTimeDetails?.isExpired && (
+                  <div className="rounded-lg bg-rose-50 border border-rose-200 p-2.5 text-xs text-rose-950 flex items-start gap-2">
+                    <span className="material-symbols-outlined text-[16px] text-rose-700 mt-0.5 shrink-0">event_busy</span>
+                    <div>
+                      <p className="font-bold text-[11px] uppercase tracking-wider text-rose-800">Prepaid Package Expired</p>
+                      <p className="text-[11px] text-rose-900/80 mt-0.5">
+                        Customer&apos;s prepaid package expired{data.pricing.blockTimeDetails.expiresAt ? ` on ${new Date(data.pricing.blockTimeDetails.expiresAt).toLocaleDateString('en-AU')}` : ''}. Flight hours are billed at standard rate ($0.00 package deduction).
+                      </p>
+                    </div>
+                  </div>
+                )}
 
-                {/* Subtotal */}
-                <div className="flex items-center justify-between border-t border-slate-200 pt-2 font-medium">
-                  <span className="text-slate-800 font-semibold">Subtotal (Flight + Landings):</span>
-                  <span className="font-mono font-black tabular-nums text-slate-900">
-                    {formatCurrency(data.pricing.subtotalCents)}
-                  </span>
-                </div>
+                {/* Prepaid Package Balance Exhausted Notice */}
+                {data.pricing.blockTimeDetails?.isExhausted && (
+                  <div className="rounded-lg bg-amber-50 border border-amber-200 p-2.5 text-xs text-amber-950 flex items-start gap-2">
+                    <span className="material-symbols-outlined text-[16px] text-amber-700 mt-0.5 shrink-0">hourglass_disabled</span>
+                    <div>
+                      <p className="font-bold text-[11px] uppercase tracking-wider text-amber-800">Prepaid Package Balance Exhausted</p>
+                      <p className="text-[11px] text-amber-900/80 mt-0.5">
+                        Customer has 0.0h package balance remaining. Flight hours are billed at the standard rate.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {data.pricing.isBlockTime ? (
+                  <>
+                    {/* Prepaid Package Flight Notice */}
+                    <div className="rounded-lg bg-purple-50 border border-purple-200 p-2.5 text-xs text-purple-900 flex items-start gap-2">
+                      <span className="material-symbols-outlined text-[16px] text-purple-700 mt-0.5 shrink-0">inventory_2</span>
+                      <div>
+                        <p className="font-bold text-[11px] uppercase tracking-wider text-purple-800">
+                          {data.pricing.blockTimeDetails?.overageHours && data.pricing.blockTimeDetails.overageHours > 0
+                            ? 'Prepaid Package Flight (With Overage)'
+                            : 'Prepaid Package Flight'}
+                        </p>
+                        <p className="text-[11px] text-purple-900/80 mt-0.5">
+                          {data.pricing.blockTimeDetails?.overageHours && data.pricing.blockTimeDetails.overageHours > 0
+                            ? `${data.pricing.blockTimeDetails.packageHoursDeducted.toFixed(1)} hrs deducted from prepaid balance. ${data.pricing.blockTimeDetails.overageHours.toFixed(1)} hrs billed as overage at locked rate (${formatCurrency(data.pricing.hourlyRateCents)}/hr). Customer is charged for overage and airport landing fees.`
+                            : `${data.pricing.blockTimeDetails?.packageHoursDeducted ?? data.pricing.billableHours} hrs deducted from prepaid balance. Flight charges are covered ($0.00 billed). Customer is only charged for airport landing fees.`}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Flight Hours covered by package */}
+                    <div className="flex items-center justify-between py-1">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-slate-700 font-medium">
+                          Aircraft Flight Hours ({(data.pricing.blockTimeDetails?.packageHoursDeducted ?? data.pricing.billableHours).toFixed(1)} hrs
+                          {data.pricing.multiDayMinimum?.isBelowMinimum
+                            ? data.pricing.multiDayMinimum.decision === 'enforce_minimum'
+                              ? ' · Enforced Min'
+                              : ' · Actual Flown'
+                            : ''}):
+                        </span>
+                        <span className="font-bold text-purple-700 bg-purple-100 border border-purple-200 px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide">
+                          Covered by Package
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-xs tabular-nums text-slate-400 line-through">
+                          {formatCurrency(Math.round((data.pricing.blockTimeDetails?.packageHoursDeducted ?? data.pricing.billableHours) * data.pricing.hourlyRateCents))}
+                        </span>
+                        <span className="font-mono font-bold tabular-nums text-emerald-700">
+                          $0.00
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Package Overage if applicable */}
+                    {data.pricing.blockTimeDetails?.overageHours && data.pricing.blockTimeDetails.overageHours > 0 ? (
+                      <div className="flex items-center justify-between py-1 bg-amber-50/70 p-2 rounded-lg border border-amber-200">
+                        <span className="text-amber-900 font-medium">
+                          Package Overage ({data.pricing.blockTimeDetails.overageHours.toFixed(1)} hrs X {formatCurrency(data.pricing.hourlyRateCents)}/hr):
+                        </span>
+                        <span className="font-mono font-bold tabular-nums text-amber-950">
+                          {formatCurrency(data.pricing.blockTimeDetails.overageAmountCents)}
+                        </span>
+                      </div>
+                    ) : null}
+
+                    {/* Landing Fees */}
+                    <div className="flex items-center justify-between py-1">
+                      <span className="text-slate-700 font-medium">
+                        Airport Landing Fees ({data.landings.totalLandings} landing{data.landings.totalLandings === 1 ? '' : 's'}):
+                      </span>
+                      <span className="font-mono font-bold tabular-nums text-slate-900">
+                        {formatCurrency(data.pricing.landingSubtotalCents)}
+                      </span>
+                    </div>
+
+                    {/* Subtotal to Pay */}
+                    <div className="flex items-center justify-between border-t border-slate-200 pt-2 font-medium">
+                      <span className="text-slate-800 font-semibold">
+                        Subtotal to Pay (Landing Fees{data.pricing.blockTimeDetails?.overageHours ? ' + Overage' : ''}):
+                      </span>
+                      <span className="font-mono font-black tabular-nums text-slate-900">
+                        {formatCurrency(data.pricing.subtotalCents)}
+                      </span>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    {/* Standard Flight Calculation with 'X' multiplication */}
+                    <div className="flex items-center justify-between py-1">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-slate-700 font-medium">Aircraft Flight Charge:</span>
+                        <span className="font-bold text-slate-900">
+                          {data.pricing.billableHours.toFixed(1)} hrs
+                          {data.pricing.multiDayMinimum?.isBelowMinimum
+                            ? data.pricing.multiDayMinimum.decision === 'enforce_minimum'
+                              ? ' (Enforced Min)'
+                              : ' (Actual Flown)'
+                            : ''}{' '}
+                          X {formatCurrency(data.pricing.hourlyRateCents)}/hr
+                        </span>
+                      </div>
+                      <span className="font-mono font-bold tabular-nums text-slate-900">
+                        {formatCurrency(data.pricing.flightAmountCents)}
+                      </span>
+                    </div>
+
+                    {/* Landing Fees */}
+                    <div className="flex items-center justify-between py-1">
+                      <span className="text-slate-700 font-medium">
+                        Airport Landing Fees ({data.landings.totalLandings} landing{data.landings.totalLandings === 1 ? '' : 's'}):
+                      </span>
+                      <span className="font-mono font-bold tabular-nums text-slate-900">
+                        {formatCurrency(data.pricing.landingSubtotalCents)}
+                      </span>
+                    </div>
+
+                    {/* Subtotal */}
+                    <div className="flex items-center justify-between border-t border-slate-200 pt-2 font-medium">
+                      <span className="text-slate-800 font-semibold">Subtotal (Flight + Landings):</span>
+                      <span className="font-mono font-black tabular-nums text-slate-900">
+                        {formatCurrency(data.pricing.subtotalCents)}
+                      </span>
+                    </div>
+                  </>
+                )}
 
                 {/* Advance/Credit Applied */}
                 {data.pricing.advanceAppliedCents > 0 && (
@@ -340,10 +505,10 @@ export function AdminFlightDetailsModal({
                   </div>
                 )}
 
-                {/* Block time details if applicable */}
-                {data.pricing.isBlockTime && data.pricing.blockTimeDetails && (
+                {/* Additional block time detail lines if provided */}
+                {data.pricing.blockTimeDetails?.detailLines && data.pricing.blockTimeDetails.detailLines.length > 0 && (
                   <div className="border-t border-slate-200 pt-2 space-y-1">
-                    {data.pricing.blockTimeDetails.map((line, idx) => (
+                    {data.pricing.blockTimeDetails.detailLines.map((line, idx) => (
                       <div key={idx} className="flex items-center justify-between text-[11px] text-slate-700">
                         <span>{line.label}</span>
                         <span className="font-bold">{line.value}</span>

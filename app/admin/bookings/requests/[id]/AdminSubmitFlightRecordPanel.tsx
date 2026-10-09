@@ -44,6 +44,7 @@ type Props = {
   bookingId: string
   airports: Airport[]
   scheduledStart: string           // ISO — used to default the flight date
+  scheduledEnd?: string            // ISO — used for multi-day calendar day calculation
   startSuggestions: AircraftContinuityBaseline
   activeBlockTime: BlockTimeSummary | null
   bookingSlotHours: number
@@ -73,6 +74,7 @@ export default function AdminSubmitFlightRecordPanel({
   bookingId,
   airports,
   scheduledStart,
+  scheduledEnd,
   startSuggestions,
   activeBlockTime,
   bookingSlotHours,
@@ -162,17 +164,19 @@ export default function AdminSubmitFlightRecordPanel({
   const totals = readingsError ? null : normalisedReadings
   const minimumVdoBilling = resolveMinimumVdoBilling({
     bookingSlotHours,
+    scheduledStart,
+    scheduledEnd,
     actualVdoHours: vdoReading,
     decision: minimumVdoDecision || null,
   })
   const minimumDecisionRequired = minimumVdoBilling.requiresDecision
   const { billedVdoHours, billedVdoSummary, billedVdoConfirmation } = resolveMinimumVdoBillingDisplay(minimumVdoBilling)
   const billedVdoInput = billedVdoHours ?? vdoReading ?? 0
-  const blockTimeCoveredHours = activeBlockTime && vdoReading != null
-    ? Math.min(vdoReading, activeBlockTime.hoursRemaining)
+  const blockTimeCoveredHours = activeBlockTime && billedVdoInput > 0
+    ? Math.min(billedVdoInput, activeBlockTime.hoursRemaining)
     : 0
-  const blockTimeOverageHours = activeBlockTime && vdoReading != null
-    ? Math.max(vdoReading - activeBlockTime.hoursRemaining, 0)
+  const blockTimeOverageHours = activeBlockTime && billedVdoInput > 0
+    ? Math.max(billedVdoInput - activeBlockTime.hoursRemaining, 0)
     : 0
 
   function handleSubmit() {
@@ -294,18 +298,30 @@ export default function AdminSubmitFlightRecordPanel({
             {readingsError}
           </div>
         )}
+        {minimumVdoBilling.bookingDays >= 2 && !minimumVdoBilling.isBelowMinimum && (
+          <div className="rounded-xl border border-blue-100 bg-blue-50/50 px-3.5 py-2.5 flex items-center justify-between text-xs text-[#152d5a]">
+            <span className="font-medium">Multi-Day Booking ({minimumVdoBilling.bookingDays} days · 4h/day minimum)</span>
+            <span className="font-semibold text-emerald-700">Minimum satisfied ({minimumVdoBilling.actualVdoHours?.toFixed(1) ?? '—'}h flown &ge; {minimumVdoBilling.minimumVdoHours.toFixed(1)}h)</span>
+          </div>
+        )}
         {minimumVdoBilling.isBelowMinimum && minimumVdoBilling.minimumVdoHours > 0 && minimumVdoBilling.actualVdoHours != null && (
           <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-4 space-y-3">
-            <div className="space-y-1">
-              <p className="text-sm font-semibold text-amber-800">
-                VDO hours are below the minimum for this booking.
-              </p>
-              <p className="text-sm text-amber-700 leading-relaxed">
-                VDO hours flown: <span className="font-mono tabular-nums font-semibold">{minimumVdoBilling.actualVdoHours.toFixed(1)} h</span>
-                {' '}| Minimum for this booking ({minimumVdoBilling.bookingDays} day{minimumVdoBilling.bookingDays === 1 ? '' : 's'} booked × 4h/day):{' '}
-                <span className="font-mono tabular-nums font-semibold">{minimumVdoBilling.minimumVdoHours.toFixed(1)} h</span>
-              </p>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-[18px] text-amber-700">policy</span>
+                <p className="text-sm font-semibold text-amber-800">
+                  Multi-Day Rental Minimum Billing Policy (4h/day minimum)
+                </p>
+              </div>
+              <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold tracking-wider uppercase bg-amber-200/80 text-amber-900">
+                {minimumVdoBilling.bookingDays} Days · {minimumVdoBilling.minimumVdoHours.toFixed(1)}h Minimum
+              </span>
             </div>
+            <p className="text-xs sm:text-sm text-amber-700 leading-relaxed">
+              This booking spans {minimumVdoBilling.bookingDays} days ({bookingSlotHours.toFixed(0)}h scheduled). The standard policy requires a minimum of 4.0 VDO flight hours per day (<span className="font-semibold">{minimumVdoBilling.minimumVdoHours.toFixed(1)} hrs total minimum</span>).
+              <br />
+              VDO hours recorded: <span className="font-mono tabular-nums font-semibold">{minimumVdoBilling.actualVdoHours.toFixed(1)} h</span>
+            </p>
             <label className="block">
               <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-amber-800 block mb-1">
                 Billing decision
@@ -317,8 +333,12 @@ export default function AdminSubmitFlightRecordPanel({
                 className="w-full max-w-lg rounded-lg border border-amber-200 bg-white px-3 py-2.5 text-sm text-[var(--admin-text)] focus:outline-none focus:border-[rgba(26,79,214,0.35)]"
               >
                 <option value="">Choose billing option…</option>
-                <option value="enforce_minimum">Enforce minimum billing</option>
-                <option value="bill_actual">Bill actual hours</option>
+                <option value="enforce_minimum">
+                  Enforce minimum billing ({minimumVdoBilling.minimumVdoHours.toFixed(1)} h)
+                </option>
+                <option value="bill_actual">
+                  Bill actual hours ({minimumVdoBilling.actualVdoHours.toFixed(1)} h)
+                </option>
               </select>
             </label>
             <p className="text-xs font-semibold text-amber-800 leading-relaxed">
@@ -491,13 +511,15 @@ export default function AdminSubmitFlightRecordPanel({
                   </div>
                   {activeBlockTime ? (
                     <>
-                      <div className="flex flex-wrap sm:flex-nowrap items-baseline justify-between gap-1">
-                        <span className="text-xs sm:text-sm text-[var(--admin-text-muted)]">Deducted from block time</span>
-                        <span className="hidden sm:inline flex-1 mx-2 border-b border-dotted border-[var(--admin-border)] translate-y-[-2px]" />
-                        <span className="text-xs sm:text-sm font-mono tabular-nums text-emerald-700 font-semibold sm:font-normal">
-                          {blockTimeCoveredHours.toFixed(2)} h
-                        </span>
-                      </div>
+                      {blockTimeCoveredHours > 0 && (
+                        <div className="flex flex-wrap sm:flex-nowrap items-baseline justify-between gap-1">
+                          <span className="text-xs sm:text-sm text-[var(--admin-text-muted)]">Deducted from block time</span>
+                          <span className="hidden sm:inline flex-1 mx-2 border-b border-dotted border-[var(--admin-border)] translate-y-[-2px]" />
+                          <span className="text-xs sm:text-sm font-mono tabular-nums text-emerald-700 font-semibold sm:font-normal">
+                            {blockTimeCoveredHours.toFixed(2)} h
+                          </span>
+                        </div>
+                      )}
                       {blockTimeOverageHours > 0 && (
                         <div className="flex flex-wrap sm:flex-nowrap items-baseline justify-between gap-1">
                           <span className="text-xs sm:text-sm font-semibold text-amber-700">Overage (invoiced at locked rate)</span>

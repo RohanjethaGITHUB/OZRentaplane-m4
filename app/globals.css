@@ -341,9 +341,9 @@ html {
   }
 }
 
-/* iOS Safari: prevent elastic overscroll from breaking sticky positioning */
+/* Enable native mobile pull-to-refresh gesture and vertical overscroll */
 html, body {
-  overscroll-behavior: none;
+  overscroll-behavior-y: auto;
 }
 
 /* Portal subnav horizontal scroll — hide scrollbar visually */

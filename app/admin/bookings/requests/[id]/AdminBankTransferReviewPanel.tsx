@@ -101,10 +101,10 @@ export default function AdminBankTransferReviewPanel({ bookingId, submission, fl
                 setViewerTitle('Bank Transfer Receipt')
                 setViewerOpen(true)
               }}
-              className="inline-flex items-center gap-2 text-[#1a4fd6] text-[13px] font-semibold hover:underline"
+              className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[#bfdbfe] bg-[#f8fbff] px-3.5 py-2 text-sm font-semibold text-[#1d4ed8] transition-colors hover:border-[#93c5fd] hover:bg-[#eff6ff] hover:text-[#1e40af] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1a4fd6]/30 focus-visible:ring-offset-2 focus-visible:ring-offset-white cursor-pointer shadow-2xs"
             >
               <span className="material-symbols-outlined text-[15px]">open_in_new</span>
-              View receipt
+              View Receipt
             </button>
           )}
           {flightDetails && (

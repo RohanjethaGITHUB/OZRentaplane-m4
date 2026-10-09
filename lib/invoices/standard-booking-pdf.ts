@@ -414,19 +414,26 @@ export async function generateStandardBookingInvoicePdf(params: {
   }> = []
 
   if (isBlockTimeBooking && blockTimeSnapshot) {
-    const deducted = Number(blockTimeSnapshot.hours_deducted) > 0
+    const rawDeducted = blockTimeSnapshot.hours_deducted != null
       ? Number(blockTimeSnapshot.hours_deducted)
-      : vdoQuantity > 0 ? vdoQuantity : 0
+      : null
     const remaining = Number(blockTimeSnapshot.hours_remaining ?? 0)
     const overage = Number(blockTimeSnapshot.overage_hours ?? 0)
     const overageCents = Number(blockTimeSnapshot.overage_amount_cents ?? 0)
 
-    lineItems.push({
-      description: `Block Time Drawdown — ${displayPkgName} (${deducted.toFixed(1)}h deducted · Balance: ${remaining.toFixed(1)}h remaining)`,
-      quantity: deducted,
-      unitPrice: 0,
-      amount: 0,
-    })
+    // Only compute fallback deducted if hours_deducted was not explicitly provided in snapshot
+    const deducted = rawDeducted != null
+      ? rawDeducted
+      : Math.max(0, roundToCents(vdoQuantity - overage))
+
+    if (deducted > 0) {
+      lineItems.push({
+        description: `Block Time Drawdown — ${displayPkgName} (${deducted.toFixed(1)}h deducted · Balance: ${remaining.toFixed(1)}h remaining)`,
+        quantity: deducted,
+        unitPrice: 0,
+        amount: 0,
+      })
+    }
 
     if (overage > 0) {
       const overageRate = (overageCents > 0 && overage > 0)
@@ -437,6 +444,15 @@ export async function generateStandardBookingInvoicePdf(params: {
         quantity: overage,
         unitPrice: overageRate,
         amount: roundToCents(overageCents / 100) || roundToCents(overage * overageRate),
+      })
+    }
+
+    if (deducted <= 0 && overage <= 0) {
+      lineItems.push({
+        description: `Flight Rental Hours — ${aircraftReg} (${aircraftModel})`,
+        quantity: vdoQuantity,
+        unitPrice: roundToCents(invoice.rate_cents_per_hour / 100),
+        amount: roundToCents(invoice.base_amount_cents / 100),
       })
     }
   } else {
@@ -559,9 +575,13 @@ export async function generateStandardBookingInvoicePdf(params: {
       : isSplitPayment
       ? `This receipt confirms full payment for your aircraft rental booking ($${splitBankAmount.toFixed(2)} via Direct Bank Transfer and $${splitCardAmount.toFixed(2)} via Stripe Online Card). All prices include GST.`
       : isBlockTimeBooking
-      ? (blockTimeSnapshot?.overage_hours && blockTimeSnapshot.overage_hours > 0
-          ? `This receipt confirms flight hours deducted from your block time package (${displayPkgName}) and payment settled for flight overage hours and charges. All prices include GST.`
-          : `This receipt confirms flight hours deducted from your block time package (${displayPkgName}). All prices include GST.`)
+      ? (Number(blockTimeSnapshot?.hours_deducted || 0) > 0
+          ? (blockTimeSnapshot?.overage_hours && blockTimeSnapshot.overage_hours > 0
+              ? `This receipt confirms flight hours deducted from your block time package (${displayPkgName}) and payment settled for flight overage hours and charges. All prices include GST.`
+              : `This receipt confirms flight hours deducted from your block time package (${displayPkgName}). All prices include GST.`)
+          : (blockTimeSnapshot?.overage_hours && blockTimeSnapshot.overage_hours > 0
+              ? `This receipt confirms payment settled for flight overage hours and charges. All prices include GST.`
+              : 'This receipt confirms full payment for your aircraft rental booking. All prices include GST.'))
       : 'This receipt confirms full payment for your aircraft rental booking. All prices include GST.'
     : isWaived
       ? 'This invoice has been waived by operations management. No payment is required.'
@@ -569,9 +589,11 @@ export async function generateStandardBookingInvoicePdf(params: {
       ? isSplitPayment
         ? `Payment received via Split Payment: $${splitBankAmount.toFixed(2)} via Direct Bank Transfer and $${splitCardAmount.toFixed(2)} via Stripe Online Card. Under operations review and verification. All prices include GST.`
         : isBlockTimeBooking
-        ? (blockTimeSnapshot?.overage_hours && blockTimeSnapshot.overage_hours > 0
-            ? `Flight record received. Hours deducted from block time package (${displayPkgName}). Payment verification required for overage hours and charges. All prices include GST.`
-            : `Flight record received. Hours deducted from block time package (${displayPkgName}). Payment verification under operations review. All prices include GST.`)
+        ? (Number(blockTimeSnapshot?.hours_deducted || 0) > 0
+            ? (blockTimeSnapshot?.overage_hours && blockTimeSnapshot.overage_hours > 0
+                ? `Flight record received. Hours deducted from block time package (${displayPkgName}). Payment verification required for overage hours and charges. All prices include GST.`
+                : `Flight record received. Hours deducted from block time package (${displayPkgName}). Payment verification under operations review. All prices include GST.`)
+            : `Flight record received. Payment verification required for overage hours and charges. All prices include GST.`)
         : 'Payment proof received. This invoice is under operations review and verification. All prices include GST.'
       : isSplitPayment
       ? `Split Payment: $${splitBankAmount.toFixed(2)} via Direct Bank Transfer and $${splitCardAmount.toFixed(2)} via Stripe Online Card. All prices include GST.`

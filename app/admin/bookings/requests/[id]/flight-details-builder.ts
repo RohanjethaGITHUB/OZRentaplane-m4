@@ -1,6 +1,8 @@
 import type {
   FlightDetailsData,
   FlightLandingItem,
+  FlightBlockTimeDetails,
+  FlightMultiDayMinimumDetails,
 } from './flight-details-types'
 
 export type BuildFlightDetailsInput = {
@@ -28,6 +30,12 @@ export type BuildFlightDetailsInput = {
   bookingFlightLog: any | null
   standardInvoice: any | null
   blockTimeInvoices: any[] | null
+  activeBlockTime?: {
+    hoursRemaining: number
+    ratePerHour: number
+    expiresAt: string
+    packageName?: string
+  } | null
   checkoutInvoice: any | null
   standardLandings: any[] | null
   checkoutLandings: any[] | null
@@ -48,6 +56,9 @@ export type BuildFlightDetailsInput = {
   timeRangeLabel?: string | null
   receiptUrl?: string | null
   hasPendingBankTransferReview?: boolean
+  isMultiDay?: boolean
+  bookingAuditEvents?: any[] | null
+  minimumVdoDecision?: 'enforce_minimum' | 'bill_actual' | null
 }
 
 function formatDateDisplay(iso: string | null | undefined): string | null {
@@ -66,6 +77,44 @@ function formatDateDisplay(iso: string | null | undefined): string | null {
   }
 }
 
+import { calculateBookingDays } from '@/lib/booking/standard-booking-billing'
+
+function deriveFlightDates(
+  scheduledStart: string | null | undefined,
+  scheduledEnd: string | null | undefined,
+  fallbackDateIso: string | null | undefined,
+  explicitIsMultiDay?: boolean
+): { flightDate: string | null; isMultiDay: boolean; daysCount: number } {
+  if (!scheduledStart) {
+    return {
+      flightDate: formatDateDisplay(fallbackDateIso),
+      isMultiDay: false,
+      daysCount: 1,
+    }
+  }
+
+  const startStr = formatDateDisplay(scheduledStart)
+  if (!scheduledEnd) {
+    return { flightDate: startStr, isMultiDay: false, daysCount: 1 }
+  }
+
+  const endStr = formatDateDisplay(scheduledEnd)
+  const isMulti = explicitIsMultiDay ?? (startStr !== endStr)
+
+  if (!isMulti || startStr === endStr) {
+    return { flightDate: startStr, isMultiDay: false, daysCount: 1 }
+  }
+
+  // Calculate day difference using system standard calculator
+  const days = calculateBookingDays({ scheduledStart, scheduledEnd }) || 2
+
+  return {
+    flightDate: `${startStr} – ${endStr} (${days} days)`,
+    isMultiDay: true,
+    daysCount: days,
+  }
+}
+
 export function buildFlightDetailsData(input: BuildFlightDetailsInput): FlightDetailsData | null {
   const {
     booking,
@@ -75,6 +124,7 @@ export function buildFlightDetailsData(input: BuildFlightDetailsInput): FlightDe
     bookingFlightLog,
     standardInvoice,
     blockTimeInvoices,
+    activeBlockTime,
     checkoutInvoice,
     standardLandings,
     checkoutLandings,
@@ -83,37 +133,45 @@ export function buildFlightDetailsData(input: BuildFlightDetailsInput): FlightDe
     timeRangeLabel,
     receiptUrl,
     hasPendingBankTransferReview,
+    isMultiDay: inputIsMultiDay,
+    bookingAuditEvents,
+    minimumVdoDecision,
   } = input
 
   const isCheckout = booking.booking_type === 'checkout'
 
-  // If there's neither a flight record, log, nor invoice, there are no flight details to show
+  // If there's neither a submitted flight record, log, nor invoice, there are no flight details to show
+  const hasSubmittedFlightRecord = Boolean(flightRecord && flightRecord.status !== 'draft')
   const hasFlightData =
-    !!flightRecord ||
-    !!bookingFlightLog ||
-    !!standardInvoice ||
-    !!checkoutInvoice ||
-    (blockTimeInvoices && blockTimeInvoices.length > 0)
+    hasSubmittedFlightRecord ||
+    Boolean(bookingFlightLog && (bookingFlightLog.vdo_total != null || bookingFlightLog.vdo_stop != null)) ||
+    Boolean(standardInvoice) ||
+    Boolean(checkoutInvoice) ||
+    Boolean(blockTimeInvoices && blockTimeInvoices.length > 0)
 
   if (!hasFlightData) {
     return null
   }
 
-  // 1. Flight Date
-  const rawFlightDate =
+  // 1. Flight Dates & Multi-Day derivation
+  const rawFallbackDate =
     flightRecord?.flight_date ||
     bookingFlightLog?.flight_date ||
-    booking.scheduled_start ||
     standardInvoice?.created_at ||
     checkoutInvoice?.created_at
 
-  const flightDate = formatDateDisplay(rawFlightDate)
+  const { flightDate, isMultiDay, daysCount } = deriveFlightDates(
+    booking.scheduled_start,
+    booking.scheduled_end,
+    rawFallbackDate,
+    inputIsMultiDay
+  )
 
   // 2. Aircraft Info
   const registration = aircraft?.registration || '—'
   const model = aircraft?.aircraft_type || aircraft?.display_name || 'Aircraft'
 
-  // 3. Pilot Info
+  // 3. Pilot Info (Including phone)
   const phone = customer?.phone_number
     ? [customer.phone_country_code, customer.phone_number].filter(Boolean).join(' ')
     : null
@@ -211,9 +269,86 @@ export function buildFlightDetailsData(input: BuildFlightDetailsInput): FlightDe
     }
   }
 
-  // 6. Pricing Breakdown
-  let hourlyRateCents = 33000
-  let billableHours = vdoHours ?? 0
+  // 6. Pricing Breakdown (Including Multi-Day Minimum, Package / Block Time handling)
+  const defaultRate = aircraft?.default_hourly_rate ? Math.round(aircraft.default_hourly_rate * 100) : 33000
+  let hourlyRateCents = defaultRate
+  const actualFlownVdo = vdoHours ?? 0
+
+  // Resolve Multi-Day Minimum Rental Policy (4h/day minimum)
+  let multiDayMinimum: FlightMultiDayMinimumDetails | null = null
+
+  if (isMultiDay && daysCount && daysCount > 0) {
+    const minHours = daysCount * 4
+    const isBelowMinimum = actualFlownVdo < minHours
+
+    // Detect if admin or operations made a decision:
+    // 1. Check bookingAuditEvents for booking_invoice_finalised
+    const finalisedAudit = (bookingAuditEvents ?? []).find(
+      (e: any) => e.event_type === 'booking_invoice_finalised'
+    )
+    const auditDecision = finalisedAudit?.new_value?.minimum_vdo_decision as 'enforce_minimum' | 'bill_actual' | undefined
+    const auditBilledHours = finalisedAudit?.new_value?.billed_vdo_hours != null
+      ? Number(finalisedAudit.new_value.billed_vdo_hours)
+      : undefined
+
+    // 2. Check standard invoice vdo_reading or block time invoice quantity
+    let invoiceBilledHours: number | undefined = undefined
+    if (standardInvoice?.vdo_reading != null) {
+      invoiceBilledHours = Number(standardInvoice.vdo_reading)
+    } else if (blockTimeInvoices && blockTimeInvoices.length > 0) {
+      const btList = blockTimeInvoices as any[]
+      const totalQty = btList.reduce((sum, inv) => {
+        const lines = inv.invoice_line_items ?? []
+        const fLine = lines.find((l: any) => l.type === 'flight_hours')
+        return sum + (fLine ? Number(fLine.quantity || 0) : 0)
+      }, 0)
+      if (totalQty > 0) invoiceBilledHours = totalQty
+    }
+
+    let decision: 'enforce_minimum' | 'bill_actual' = 'enforce_minimum'
+
+    if (auditDecision) {
+      decision = auditDecision
+    } else if (auditBilledHours != null && isBelowMinimum) {
+      decision = auditBilledHours >= minHours ? 'enforce_minimum' : 'bill_actual'
+    } else if (invoiceBilledHours != null && isBelowMinimum) {
+      if (Math.abs(invoiceBilledHours - minHours) < 0.05) {
+        decision = 'enforce_minimum'
+      } else if (Math.abs(invoiceBilledHours - actualFlownVdo) < 0.05) {
+        decision = 'bill_actual'
+      } else {
+        decision = invoiceBilledHours >= minHours ? 'enforce_minimum' : 'bill_actual'
+      }
+    } else if (minimumVdoDecision) {
+      decision = minimumVdoDecision
+    } else {
+      // Default multi-day rental policy is to enforce minimum
+      decision = 'enforce_minimum'
+    }
+
+    const billedHours = isBelowMinimum
+      ? (decision === 'enforce_minimum' ? minHours : actualFlownVdo)
+      : actualFlownVdo
+
+    const explanation = isBelowMinimum
+      ? (decision === 'enforce_minimum'
+          ? `Rental policy 4h/day minimum enforced (${minHours.toFixed(1)}h billed for ${daysCount} days vs ${actualFlownVdo.toFixed(1)}h flown).`
+          : `Operations approved billing actual flight time (${actualFlownVdo.toFixed(1)}h billed instead of ${minHours.toFixed(1)}h minimum).`)
+      : `Flight time of ${actualFlownVdo.toFixed(1)}h meets or exceeds the multi-day minimum (${minHours.toFixed(1)}h for ${daysCount} days).`
+
+    multiDayMinimum = {
+      isMultiDay: true,
+      bookingDays: daysCount,
+      minimumHours: minHours,
+      actualHours: actualFlownVdo,
+      billedHours,
+      decision,
+      isBelowMinimum,
+      explanation,
+    }
+  }
+
+  let billableHours = multiDayMinimum?.billedHours ?? actualFlownVdo
   let flightAmountCents = 0
   let landingSubtotalCents = landingItems.reduce((acc, curr) => acc + curr.totalFeeCents, 0)
   let subtotalCents = 0
@@ -226,7 +361,19 @@ export function buildFlightDetailsData(input: BuildFlightDetailsInput): FlightDe
   let paymentMethod: string | null = null
   let paidAt: string | null = null
   let isBlockTime = false
-  let blockTimeDetails: { label: string; value: string }[] | null = null
+  let blockTimeDetails: FlightBlockTimeDetails | null = null
+
+  // Package checks:
+  const hasBlockTimeInvoices = Boolean(blockTimeInvoices && blockTimeInvoices.length > 0)
+  const isPackageExpired = Boolean(
+    activeBlockTime?.expiresAt && new Date(activeBlockTime.expiresAt).getTime() <= Date.now()
+  )
+  const packageRemainingHours = Math.max(0, Number(activeBlockTime?.hoursRemaining || 0))
+  const isPackageExhausted = Boolean(activeBlockTime && packageRemainingHours <= 0)
+
+  const isPackageFlight =
+    hasBlockTimeInvoices ||
+    (Boolean(activeBlockTime) && !isPackageExpired && !isPackageExhausted && !standardInvoice && !isCheckout)
 
   if (isCheckout && checkoutInvoice) {
     hourlyRateCents = Number(checkoutInvoice.checkout_rate_cents_per_hour) || 29000
@@ -242,9 +389,98 @@ export function buildFlightDetailsData(input: BuildFlightDetailsInput): FlightDe
     invoiceNumber = checkoutInvoice.invoice_number || null
     paymentMethod = checkoutInvoice.payment_method || null
     paidAt = checkoutInvoice.paid_at || null
+  } else if (isPackageFlight) {
+    isBlockTime = true
+
+    if (hasBlockTimeInvoices) {
+      type BTInv = {
+        id: string
+        invoice_number: string
+        status: string
+        total: number
+        is_block_time_overage: boolean
+        pdf_url: string | null
+        paid_at: string | null
+        invoice_line_items?: { type: string; description: string; quantity: number; unit_price: number; amount: number }[] | null
+      }
+      const btList = blockTimeInvoices as BTInv[]
+      const usageInv = btList.find(i => !i.is_block_time_overage && (i.invoice_line_items?.some(l => l.type === 'flight_hours') || i.status === 'paid'))
+      const landingInv = btList.find(i => i.invoice_line_items?.some(l => l.type === 'landing_fee'))
+      const overageInv = btList.find(i => i.is_block_time_overage)
+
+      const usageLine = usageInv?.invoice_line_items?.find(l => l.type === 'flight_hours')
+      const overageLine = overageInv?.invoice_line_items?.find(l => l.type === 'overflow_hours' || l.type === 'flight_hours')
+
+      const lockedRate = Number(overageLine?.unit_price) || Number(activeBlockTime?.ratePerHour) || (defaultRate / 100)
+      hourlyRateCents = Math.round(lockedRate * 100)
+
+      const overageHours = Number(overageLine?.quantity) || (overageInv ? Math.max(0, Math.round((billableHours - (Number(usageLine?.quantity) || 0)) * 10) / 10) : 0)
+      const packageHours = Number(usageLine?.quantity) || Math.max(0, Math.round((billableHours - overageHours) * 10) / 10)
+
+      const overageAmount = overageLine?.amount != null
+        ? Math.round(Number(overageLine.amount) * 100)
+        : (overageHours > 0 ? Math.round(overageHours * hourlyRateCents) : (overageInv ? Math.round(Number(overageInv.total || 0) * 100) : 0))
+      const landingAmount = landingInv ? Math.round(Number(landingInv.total || 0) * 100) : landingSubtotalCents
+
+      flightAmountCents = overageAmount // Flight overage charge
+      landingSubtotalCents = landingAmount
+      subtotalCents = landingAmount + overageAmount
+
+      // Amount due is any unpaid landing fee + overage invoices
+      const landingDue = landingInv?.status === 'paid' ? 0 : landingAmount
+      const overageDue = overageInv?.status === 'paid' ? 0 : overageAmount
+      amountDueCents = landingDue + overageDue
+      totalPaidCents = (landingInv?.status === 'paid' ? landingAmount : 0) + (overageInv?.status === 'paid' ? overageAmount : 0)
+
+      invoiceNumber = overageInv && landingInv
+        ? `${overageInv.invoice_number} · ${landingInv.invoice_number}`
+        : (overageInv?.invoice_number || landingInv?.invoice_number || usageInv?.invoice_number || null)
+      status = amountDueCents === 0 ? 'paid' : (landingInv?.status || overageInv?.status || 'payment_required')
+      paidAt = landingInv?.paid_at || usageInv?.paid_at || null
+
+      blockTimeDetails = {
+        packageHoursDeducted: packageHours,
+        overageHours,
+        overageAmountCents: overageAmount,
+        landingFeesCents: landingAmount,
+        landingInvoiceNumber: landingInv?.invoice_number,
+        usageInvoiceNumber: usageInv?.invoice_number,
+        overageInvoiceNumber: overageInv?.invoice_number,
+        detailLines: [
+          { label: 'Package Usage', value: `${packageHours.toFixed(1)} hrs deducted from package ($0.00 flight charge)` },
+          ...(overageHours > 0 ? [{ label: 'Package Overage', value: `${overageHours.toFixed(1)} hrs @ $${(hourlyRateCents / 100).toFixed(2)}/hr ($${(overageAmount / 100).toFixed(2)})` }] : []),
+          { label: 'Airport Landing Fees', value: `$${(landingAmount / 100).toFixed(2)}` },
+        ],
+      }
+    } else {
+      // User has active, unexpired package with hours remaining
+      const packageHours = Math.min(billableHours, packageRemainingHours)
+      const overageHours = Math.max(0, Math.round((billableHours - packageHours) * 10) / 10)
+      hourlyRateCents = activeBlockTime?.ratePerHour ? Math.round(activeBlockTime.ratePerHour * 100) : defaultRate
+      const overageAmount = Math.round(overageHours * hourlyRateCents)
+
+      flightAmountCents = 0 // Covered by package!
+      subtotalCents = landingSubtotalCents + overageAmount
+      amountDueCents = subtotalCents
+
+      blockTimeDetails = {
+        packageHoursDeducted: packageHours,
+        overageHours,
+        overageAmountCents: overageAmount,
+        landingFeesCents: landingSubtotalCents,
+        packageName: activeBlockTime?.packageName || 'Prepaid Flight Package',
+        expiresAt: activeBlockTime?.expiresAt,
+        packageRatePerHour: activeBlockTime?.ratePerHour,
+        detailLines: [
+          { label: 'Package Hours Deducted', value: `${packageHours.toFixed(1)} hrs from balance ($0.00 flight charge)` },
+          ...(overageHours > 0 ? [{ label: 'Package Overage', value: `${overageHours.toFixed(1)} hrs @ $${(hourlyRateCents / 100).toFixed(2)}/hr ($${(overageAmount / 100).toFixed(2)})` }] : []),
+          { label: 'Airport Landing Fees', value: `$${(landingSubtotalCents / 100).toFixed(2)}` },
+        ],
+      }
+    }
   } else if (standardInvoice) {
-    hourlyRateCents = Number(standardInvoice.rate_cents_per_hour) || 33000
-    billableHours = Number(standardInvoice.vdo_reading) || (vdoHours ?? 0)
+    hourlyRateCents = Number(standardInvoice.rate_cents_per_hour) || defaultRate
+    billableHours = Number(standardInvoice.vdo_reading) || billableHours
     flightAmountCents = Number(standardInvoice.base_amount_cents) || Math.round(billableHours * hourlyRateCents)
     landingSubtotalCents = Number(standardInvoice.landing_subtotal_cents) ?? landingSubtotalCents
     subtotalCents = Number(standardInvoice.subtotal_cents) || (flightAmountCents + landingSubtotalCents)
@@ -255,34 +491,44 @@ export function buildFlightDetailsData(input: BuildFlightDetailsInput): FlightDe
     invoiceNumber = standardInvoice.invoice_number || null
     paymentMethod = standardInvoice.payment_method || null
     paidAt = standardInvoice.paid_at || null
-  } else if (blockTimeInvoices && blockTimeInvoices.length > 0) {
-    const inv = blockTimeInvoices[0]
-    isBlockTime = true
-    subtotalCents = Math.round((Number(inv.total) || 0) * 100)
-    amountDueCents = subtotalCents
-    invoiceNumber = inv.invoice_number || null
-    status = inv.status || 'paid'
-    paidAt = inv.paid_at || null
 
-    if (aircraft?.default_hourly_rate) {
-      hourlyRateCents = Math.round(aircraft.default_hourly_rate * 100)
-    }
-    flightAmountCents = Math.round(billableHours * hourlyRateCents)
-
-    blockTimeDetails = [
-      { label: 'Billing Mode', value: 'Prepaid Block Time Package' },
-      { label: 'Flight Hours Flown', value: `${billableHours.toFixed(1)} hrs` },
-    ]
-    if (inv.is_block_time_overage) {
-      blockTimeDetails.push({ label: 'Overage Billed', value: `$${Number(inv.total).toFixed(2)}` })
+    if (isPackageExpired || (activeBlockTime && isPackageExpired)) {
+      blockTimeDetails = {
+        packageHoursDeducted: 0,
+        isExpired: true,
+        expiresAt: activeBlockTime?.expiresAt,
+        packageName: activeBlockTime?.packageName || 'Prepaid Flight Package',
+        detailLines: [
+          { label: 'Package Status', value: `Expired on ${formatDateDisplay(activeBlockTime?.expiresAt) || activeBlockTime?.expiresAt} — standard flight rate applied` },
+        ],
+      }
     }
   } else {
-    if (aircraft?.default_hourly_rate) {
-      hourlyRateCents = Math.round(aircraft.default_hourly_rate * 100)
-    }
+    hourlyRateCents = defaultRate
     flightAmountCents = Math.round(billableHours * hourlyRateCents)
     subtotalCents = flightAmountCents + landingSubtotalCents
     amountDueCents = subtotalCents
+
+    if (isPackageExpired) {
+      blockTimeDetails = {
+        packageHoursDeducted: 0,
+        isExpired: true,
+        expiresAt: activeBlockTime?.expiresAt,
+        packageName: activeBlockTime?.packageName || 'Prepaid Flight Package',
+        detailLines: [
+          { label: 'Package Status', value: `Expired on ${formatDateDisplay(activeBlockTime?.expiresAt) || activeBlockTime?.expiresAt} — standard flight rate applied` },
+        ],
+      }
+    } else if (isPackageExhausted) {
+      blockTimeDetails = {
+        packageHoursDeducted: 0,
+        isExhausted: true,
+        packageName: activeBlockTime?.packageName || 'Prepaid Flight Package',
+        detailLines: [
+          { label: 'Package Status', value: 'Prepaid package balance exhausted (0.0h remaining) — standard flight rate applied' },
+        ],
+      }
+    }
   }
 
   // If there's an active bank transfer submission pending review or receipt uploaded awaiting confirmation
@@ -320,6 +566,8 @@ export function buildFlightDetailsData(input: BuildFlightDetailsInput): FlightDe
     bookingReference:
       booking.booking_reference || booking.id.slice(0, 8).toUpperCase(),
     bookingType: isCheckout ? 'checkout' : 'standard',
+    isMultiDay,
+    daysCount,
     flightDate,
     scheduledTimeRange: timeRangeLabel || null,
     aircraft: {
@@ -356,6 +604,7 @@ export function buildFlightDetailsData(input: BuildFlightDetailsInput): FlightDe
       paidAt,
       isBlockTime,
       blockTimeDetails,
+      multiDayMinimum,
     },
     receiptUrl: receiptUrl || null,
     operational: {
