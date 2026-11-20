@@ -53,6 +53,11 @@ const NAV_GROUPS: NavGroupType[] = [
     ],
   },
   {
+    title: 'Promotions',
+    href: '/admin/promotions',
+    icon: 'sell',
+  },
+  {
     title: 'Customers',
     href: '/admin/customers/all',
     icon: 'group_work',
@@ -90,26 +95,30 @@ const NAV_GROUPS: NavGroupType[] = [
   },
 ]
 
+// Sections pick groups by title, so reordering NAV_GROUPS never shifts a section.
+const pickGroups = (...titles: string[]) =>
+  titles.map((t) => NAV_GROUPS.find((g) => g.title === t)).filter((g): g is NavGroupType => Boolean(g))
+
 const NAV_SECTIONS: NavSectionType[] = [
   {
     title: 'Operations',
-    groups: NAV_GROUPS.slice(0, 2),
+    groups: pickGroups('Actions', 'Bookings', 'Promotions'),
   },
   {
     title: 'Customers',
-    groups: NAV_GROUPS.slice(2, 3),
+    groups: pickGroups('Customers'),
   },
   {
     title: 'Fleet',
-    groups: NAV_GROUPS.slice(3, 4),
+    groups: pickGroups('Calendar'),
   },
   {
     title: 'Communication',
-    groups: NAV_GROUPS.slice(4, 5),
+    groups: pickGroups('Aircraft'),
   },
   {
     title: 'Admin',
-    groups: NAV_GROUPS.slice(5),
+    groups: pickGroups('Messages', 'Settings'),
   },
 ]
 

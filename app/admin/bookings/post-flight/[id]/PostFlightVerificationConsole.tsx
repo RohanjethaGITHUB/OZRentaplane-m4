@@ -1727,7 +1727,7 @@ export default function PostFlightVerificationConsole({
                 </p>
                 {stripeGrossChargedCents > 0 && stripeGrossChargedCents > (cardPaidCents > 0 ? cardPaidCents : effectiveUpfrontPaidCents) && (
                   <p className="text-[10px] text-slate-500 font-medium mt-0.5">
-                    Gross Charged: ${(stripeGrossChargedCents / 100).toFixed(2)} (includes ${((stripeGrossChargedCents - (cardPaidCents > 0 ? cardPaidCents : effectiveUpfrontPaidCents)) / 100).toFixed(2)} online card processing surcharge)
+                    Gross Charged: ${(stripeGrossChargedCents / 100).toFixed(2)} (includes ${((stripeGrossChargedCents - (cardPaidCents > 0 ? cardPaidCents : effectiveUpfrontPaidCents)) / 100).toFixed(2)} operational fee)
                   </p>
                 )}
               </div>

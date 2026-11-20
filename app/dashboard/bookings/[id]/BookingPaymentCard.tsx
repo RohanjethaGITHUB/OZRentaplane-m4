@@ -455,7 +455,7 @@ export default function BookingPaymentCard({
             </div>
             {surchargeCents > 0 && (
               <div className="flex justify-between text-[#4b6390] text-xs">
-                <span>Online payment surcharge (1.7% + 30c)</span>
+                <span>Operational fee</span>
                 <span>${surchargeAmount}</span>
               </div>
             )}

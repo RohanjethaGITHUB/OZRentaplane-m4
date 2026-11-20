@@ -155,9 +155,17 @@ export default function DashboardNextActionPanel({ state, flightSnapshotBooking 
       <div className="relative flex flex-col gap-5 pl-2 md:pl-3">
         <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
           <div className="min-w-0">
-            <p className={`text-[11px] font-semibold uppercase tracking-[0.18em] ${styles.eyebrow}`}>
-              {state.actionEyebrow}
-            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <p className={`text-[11px] font-semibold uppercase tracking-[0.18em] ${styles.eyebrow}`}>
+                {state.actionEyebrow}
+              </p>
+              {state.promoBadge ? (
+                <span className="inline-flex items-center gap-1 rounded-full bg-[#0f2547] px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-[#ffcf5c]">
+                  <span className="material-symbols-outlined text-[13px]" aria-hidden="true">sell</span>
+                  {state.promoBadge}
+                </span>
+              ) : null}
+            </div>
             <h2
               id="dashboard-next-step-heading"
               className={`mt-2 text-[28px] font-normal leading-tight md:text-[34px] ${styles.heading}`}

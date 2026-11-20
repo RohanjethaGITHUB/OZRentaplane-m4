@@ -15,6 +15,7 @@ import {
 } from '@/lib/dashboard/dashboard-action-state'
 import { emitClearanceUpdated } from '@/lib/realtime/emit'
 import { createPerfLogger } from '@/lib/perf/timing'
+import { applyPromotionDashboardCopy } from '@/lib/dashboard/promotion-action-copy'
 
 type BlockTimePackageRow = {
   id: string
@@ -41,6 +42,8 @@ type BlockTimePurchaseRow = {
   status: 'pending' | 'active' | 'exhausted' | 'expired' | 'refunded'
   hours_purchased: number
   hours_remaining: number
+  bonus_hours?: number | null
+  promotion_id?: string | null
   expires_at: string
   purchased_at: string
   activated_at: string | null
@@ -303,6 +306,8 @@ export default async function DashboardPage({
         status,
         hours_purchased,
         hours_remaining,
+        bonus_hours,
+        promotion_id,
         expires_at,
         purchased_at,
         activated_at,
@@ -316,6 +321,17 @@ export default async function DashboardPage({
         .eq('user_id', user.id)
         .order('purchased_at', { ascending: false })
         .limit(10),
+      // Unused Black Friday free checkout credit (RLS: users read their own).
+      Promise.resolve(
+        supabase
+          .from('checkout_credits')
+          .select('id, purchase_id')
+          .eq('user_id', user.id)
+          .eq('status', 'available')
+          .order('created_at', { ascending: true })
+          .limit(1)
+          .maybeSingle(),
+      ).catch(() => ({ data: null })),
       searchParams?.block_time_purchase === 'success'
         ? Promise.resolve(
             supabase
@@ -718,7 +734,7 @@ export default async function DashboardPage({
     effectiveClearanceStatus === 'cleared_to_fly' &&
     (hasManualClearance || (hasClearancePath && bookingReadiness.bookingReady))
 
-  const dashboardActionState = resolveDashboardActionState({
+  const baseDashboardActionState = resolveDashboardActionState({
     profile: {
       account_status: (profile as Profile | null)?.account_status ?? 'active',
       account_lock_reason: (profile as Profile | null)?.account_lock_reason ?? null,
@@ -755,6 +771,7 @@ export default async function DashboardPage({
   const [
     { data: blockTimePackageRows },
     { data: blockTimePurchaseRows },
+    { data: availableCheckoutCredit },
     { data: recentBlockTimeInvoice },
   ] = await blockTimePromise
 
@@ -820,6 +837,27 @@ export default async function DashboardPage({
     }
     : null
 
+  // Black Friday: re-word the hero / next-step card when the pilot holds a promo
+  // package (or an unused free checkout credit from one).
+  const creditPurchaseId = (availableCheckoutCredit as { purchase_id: string | null } | null)?.purchase_id ?? null
+  const promoPurchase =
+    blockTimePurchases.find((p) => creditPurchaseId && p.id === creditPurchaseId) ??
+    blockTimePurchases.find(
+      (p) => p.promotion_id && (p.status === 'active' || p.status === 'pending') && Number(p.hours_remaining) > 0,
+    ) ??
+    null
+  const dashboardActionState = applyPromotionDashboardCopy(
+    baseDashboardActionState,
+    promoPurchase && (promoPurchase.promotion_id || availableCheckoutCredit)
+      ? {
+        packageName: promoPurchase.package?.name ?? 'block time package',
+        paidHours: Number(promoPurchase.hours_purchased ?? 0),
+        bonusHours: Number(promoPurchase.bonus_hours ?? 0),
+        hasFreeCheckoutCredit: Boolean(availableCheckoutCredit),
+      }
+      : null,
+  )
+
   const newlyPurchasedInvoicePdfUrl = recentBlockTimeInvoice?.pdf_url ?? null
   await loginTrackingPromise
   markTotal()
@@ -848,8 +886,10 @@ export default async function DashboardPage({
           searchParams?.block_time_purchase === 'success'
             ? {
               kind: 'success',
-              title: 'Purchase Successful!',
-              message: 'Your block time package has been successfully activated.',
+              title: latestPurchase?.promotion_id ? 'Black Friday package secured!' : 'Purchase Successful!',
+              message: latestPurchase?.promotion_id
+                ? `Your ${latestPurchasePackageName} is active with ${Number(latestPurchase.hours_purchased) + Number(latestPurchase.bonus_hours ?? 0)} hours${Number(latestPurchase.bonus_hours ?? 0) > 0 ? ` (incl. ${Number(latestPurchase.bonus_hours)} bonus)` : ''}${availableCheckoutCredit ? ', plus a free checkout flight' : ''}.`
+                : 'Your block time package has been successfully activated.',
               actionLabel: newlyPurchasedInvoicePdfUrl ? 'Download PDF Invoice' : undefined,
               actionUrl: newlyPurchasedInvoicePdfUrl ?? undefined,
             }

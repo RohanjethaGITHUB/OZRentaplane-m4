@@ -42,6 +42,54 @@ function getServiceClient() {
   return createClient(supabaseUrl, serviceKey);
 }
 
+// ── Block time promotion (Black Friday) ─────────────────────────────────────
+// Promotion terms are set server-side in the Stripe metadata when the payment
+// session is created. They are re-checked against promotion_package_rules so
+// only a real rule for this package can add bonus hours or a free checkout.
+type BlockTimePromo = { promotionId: string; bonusHours: number; freeCheckout: boolean };
+
+async function resolveBlockTimePromo(
+  supabase: any,
+  metadata: Stripe.Metadata | null | undefined,
+  packageId: string | null | undefined,
+): Promise<BlockTimePromo | null> {
+  const promotionId = metadata?.promotion_id;
+  if (!promotionId || !packageId) return null;
+  const { data: rule, error } = await supabase
+    .from("promotion_package_rules")
+    .select("bonus_hours, includes_free_checkout")
+    .eq("promotion_id", promotionId)
+    .eq("package_id", packageId)
+    .maybeSingle();
+  if (error || !rule) {
+    console.warn("[webhook] promotion metadata present but no matching rule — ignoring promo", { promotionId, packageId });
+    return null;
+  }
+  const metaBonus = Number(metadata?.promo_bonus_hours ?? 0);
+  // Honour the terms shown at checkout, but never exceed the rule ceiling of 50h.
+  const bonusHours = Number.isFinite(metaBonus) ? Math.min(Math.max(metaBonus, 0), 50) : 0;
+  const freeCheckout = metadata?.promo_free_checkout === "true" && rule.includes_free_checkout === true;
+  if (bonusHours <= 0 && !freeCheckout) return null;
+  return { promotionId, bonusHours, freeCheckout };
+}
+
+async function recordBlockTimePromo(supabase: any, purchaseId: string, promo: BlockTimePromo | null) {
+  if (!promo) return null;
+  const { data, error } = await supabase.rpc("record_block_time_promotion", {
+    p_purchase_id: purchaseId,
+    p_promotion_id: promo.promotionId,
+    p_bonus_hours: promo.bonusHours,
+    p_free_checkout: promo.freeCheckout,
+  });
+  if (error) {
+    // Hours were already credited; the grant/credit audit rows can be re-run by
+    // replaying the event. Alert loudly but do not fail the payment.
+    logErr("record_block_time_promotion FAILED (bonus hours credited, audit/credit missing)", error);
+    return null;
+  }
+  return (Array.isArray(data) ? data[0] : data) as { out_credit_id: string | null; out_applied_booking_id: string | null } | null;
+}
+
 // Event-ID level dedupe (additive to the purchase/invoice-based checks below).
 // A lookup failure never blocks payment processing.
 async function isEventAlreadyProcessed(supabase: any, eventId: string): Promise<boolean> {
@@ -761,6 +809,9 @@ export async function POST(req: Request) {
       const amountPaid = Number(purchase.amount_paid ?? (paymentIntent.amount_received ?? 0) / 100);
       const invoiceAmounts = buildGstBreakdown(amountPaid);
       const activationExpiry = new Date(Date.now() + validityDays * 24 * 60 * 60 * 1000).toISOString();
+      const blockTimePromo = await resolveBlockTimePromo(supabase, paymentIntent.metadata, purchase.package_id);
+      const promoBonusHours = blockTimePromo?.bonusHours ?? 0;
+      const creditedHours = packageHours + promoBonusHours;
 
       if (existingInvoice) {
         const { error: updatePurchaseErr } = await supabase
@@ -769,7 +820,11 @@ export async function POST(req: Request) {
             status: "active",
             activated_at: new Date().toISOString(),
             expires_at: activationExpiry,
-            hours_remaining: packageHours,
+            hours_remaining: creditedHours,
+            // bonus_hours must be written with hours_remaining: the DB check is
+            // hours_remaining <= hours_purchased + bonus_hours (migration 121).
+            bonus_hours: promoBonusHours,
+            promotion_id: blockTimePromo?.promotionId ?? null,
             stripe_payment_intent_id: paymentIntent.id,
           })
           .eq("id", purchase.id);
@@ -778,6 +833,8 @@ export async function POST(req: Request) {
           logErr("reactivate existing block time purchase FAILED", updatePurchaseErr);
           return NextResponse.json({ error: "Payment processing failed" }, { status: 500 });
         }
+
+        await recordBlockTimePromo(supabase, purchase.id, blockTimePromo);
 
         try {
           const paymentMethodId =
@@ -896,13 +953,48 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: "Payment processing failed" }, { status: 500 });
       }
 
+      if (blockTimePromo) {
+        const promoLines = [
+          promoBonusHours > 0
+            ? {
+                invoice_id: invoice.id,
+                type: "block_time_hours",
+                description: `Black Friday bonus hours (free)`,
+                quantity: promoBonusHours,
+                unit_price: 0,
+                amount: 0,
+                display_order: 2,
+              }
+            : null,
+          blockTimePromo.freeCheckout
+            ? {
+                invoice_id: invoice.id,
+                type: "block_time_hours",
+                description: "Black Friday free checkout flight (included)",
+                quantity: 1,
+                unit_price: 0,
+                amount: 0,
+                display_order: 3,
+              }
+            : null,
+        ].filter(Boolean);
+        if (promoLines.length > 0) {
+          const { error: promoLineErr } = await supabase.from("invoice_line_items").insert(promoLines);
+          if (promoLineErr) logErr("insert promotion invoice line items FAILED (non-fatal)", promoLineErr);
+        }
+      }
+
       const { error: updatePurchaseErr } = await supabase
         .from("pilot_block_time_purchases")
         .update({
           status: "active",
           activated_at: new Date().toISOString(),
           expires_at: activationExpiry,
-          hours_remaining: packageHours,
+          hours_remaining: creditedHours,
+          // bonus_hours must be written with hours_remaining: the DB check is
+          // hours_remaining <= hours_purchased + bonus_hours (migration 121).
+          bonus_hours: promoBonusHours,
+          promotion_id: blockTimePromo?.promotionId ?? null,
           stripe_payment_intent_id: paymentIntent.id,
         })
         .eq("id", purchase.id);
@@ -910,6 +1002,12 @@ export async function POST(req: Request) {
       if (updatePurchaseErr) {
         logErr("activate block time purchase FAILED", updatePurchaseErr);
         return NextResponse.json({ error: "Payment processing failed" }, { status: 500 });
+      }
+
+      const promoResult = await recordBlockTimePromo(supabase, purchase.id, blockTimePromo);
+      if (promoResult?.out_applied_booking_id) {
+        void emitBookingChanged({ bookingId: promoResult.out_applied_booking_id, userId: purchase.user_id });
+        void emitClearanceUpdated(purchase.user_id);
       }
 
       await markEventProcessed(supabase, event);
@@ -982,7 +1080,7 @@ export async function POST(req: Request) {
             pilotFirstName,
             packageName,
             packageHours,
-            currentBalance: packageHours,
+            currentBalance: creditedHours,
             ratePerHour,
             expiryDate: new Date(activationExpiry).toLocaleDateString("en-AU", {
               timeZone: "Australia/Sydney",
@@ -1070,7 +1168,9 @@ export async function POST(req: Request) {
             actor_role: "system",
             event_type: "approved",
             title: `${packageName} Block Time activated`,
-            body: `Your ${packageHours} hour Block Time purchase has been confirmed and added to your account.`,
+            body: blockTimePromo
+              ? `Your ${packageHours} hour Block Time purchase has been confirmed.${promoBonusHours > 0 ? ` Black Friday bonus: +${promoBonusHours} hour${promoBonusHours === 1 ? "" : "s"} added (${creditedHours} hours in total).` : ""}${blockTimePromo.freeCheckout ? " Your free checkout flight is ready to use." : ""}`
+              : `Your ${packageHours} hour Block Time purchase has been confirmed and added to your account.`,
             is_read: false,
             email_status: "skipped",
           });

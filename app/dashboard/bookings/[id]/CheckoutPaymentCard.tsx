@@ -363,7 +363,7 @@ export default function CheckoutPaymentCard({
             </div>
             {surchargeCents > 0 && (
               <div className="flex justify-between gap-3 text-[#4b6390] text-[11px] sm:text-xs">
-                <span>Card surcharge (1.7% + 30¢)</span>
+                <span>Operational fee</span>
                 <span className="tabular-nums">${surchargeAmount}</span>
               </div>
             )}

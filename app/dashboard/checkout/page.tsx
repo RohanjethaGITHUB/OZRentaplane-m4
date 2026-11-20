@@ -277,10 +277,28 @@ export default async function CheckoutPage() {
     documents: (documents ?? []) as UserDocument[],
     hasCheckoutBooking: Boolean(checkoutBooking),
   })
+  // Black Friday: a free checkout credit from a block time purchase.
+  const { count: freeCheckoutCredits } = await supabase
+    .from('checkout_credits')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', user.id)
+    .eq('status', 'available')
+
   return (
     <CustomerBookingShell user={user as User} profile={typedProfile}>
       <CheckoutHero clearanceStatus={clearanceStatus} />
       <div className="space-y-5 mt-5">
+        {(freeCheckoutCredits ?? 0) > 0 ? (
+          <div className="flex items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-4 text-emerald-900">
+            <span className="material-symbols-outlined text-[22px] text-emerald-600">redeem</span>
+            <div>
+              <p className="text-sm font-semibold">Your checkout flight is free</p>
+              <p className="mt-0.5 text-sm leading-relaxed">
+                It&apos;s included with your Black Friday block time package. Book it below as normal — you won&apos;t be charged for the checkout flight.
+              </p>
+            </div>
+          </div>
+        ) : null}
         <CheckoutFlow
           firstName={firstName}
           aircraftId={aircraft.id}

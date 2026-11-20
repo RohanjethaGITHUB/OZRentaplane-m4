@@ -43,6 +43,8 @@ type Props = {
   customerId: string
   scheduledStart: string
   noShowLocked: boolean
+  /** Pilot holds an unused promotion free checkout credit (Black Friday). */
+  hasFreeCheckoutCredit?: boolean
 }
 
 type OutcomeKey =
@@ -52,7 +54,10 @@ type OutcomeKey =
   | 'not_currently_eligible'
 
 type ManualPaymentMethod = 'cash' | 'card_in_person' | 'bank_transfer'
-type SubmissionConfirmation = 'send_invoice' | 'mark_paid' | null
+type SubmissionConfirmation = 'send_invoice' | 'mark_paid' | 'promo_free' | null
+type SubmitMode = 'send_invoice' | 'mark_paid' | 'promo_free'
+/** Black Friday free checkout: are landing fees also free, or still charged? */
+type PromoLandingMode = 'free' | 'charge'
 
 const OUTCOMES: {
   key: OutcomeKey
@@ -132,6 +137,7 @@ export default function AdminCheckoutActions({
   customerId,
   scheduledStart,
   noShowLocked,
+  hasFreeCheckoutCredit = false,
 }: Props) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
@@ -140,6 +146,8 @@ export default function AdminCheckoutActions({
   const [cancelReason, setCancelReason] = useState('')
   const [confirmingOutcome, setConfirmingOutcome] = useState<OutcomeKey | null>(null)
   const [paymentWaived, setPaymentWaived] = useState(false)
+  const [chargeDespiteCredit, setChargeDespiteCredit] = useState(false)
+  const [promoLandingMode, setPromoLandingMode] = useState<PromoLandingMode>('free')
   const [waiverReason, setWaiverReason] = useState('')
   const [hourlyRate, setHourlyRate] = useState(String(CHECKOUT_RATE_PER_HOUR))
   const [adminNote, setAdminNote] = useState('')
@@ -197,6 +205,8 @@ export default function AdminCheckoutActions({
     setManualPaymentMethod('cash')
     setManualAmount('')
     setManualPaymentNote('')
+    setChargeDespiteCredit(false)
+    setPromoLandingMode('free')
     setError(null)
     setLandingRows([{ id: Date.now(), airportId: defaultAirportId, landingCount: '1' }])
   }
@@ -256,12 +266,18 @@ export default function AdminCheckoutActions({
 
   const vdoBaseCents        = !paymentWaived && validHourlyRate && vdoReading != null ? Math.round(vdoReading * Math.round(hourlyRateNum * 100)) : 0
   const landingSubtotalCents = validLandingCharges.reduce((sum, row) => sum + LANDING_FEE_CENTS * row.landingCount, 0)
-  const finalAmountCents    = paymentWaived ? 0 : vdoBaseCents + landingSubtotalCents
+  // Black Friday free checkout applies (pilot has a credit, admin did not waive
+  // or choose to charge normally). Hire is always free; landing fees per admin.
+  const promoActive         = hasFreeCheckoutCredit && !paymentWaived && !chargeDespiteCredit
+  const promoChargesLanding = promoActive && promoLandingMode === 'charge'
+  const promoDiscountCents  = promoActive ? vdoBaseCents + (promoChargesLanding ? 0 : landingSubtotalCents) : 0
+  const finalAmountCents    = paymentWaived ? 0 : vdoBaseCents + landingSubtotalCents - promoDiscountCents
   const creditApplicable    = Math.min(customerCreditCents, finalAmountCents)
   const estimatedAmountDue  = Math.max(finalAmountCents - creditApplicable, 0)
   const outcomeSupportsWaiver = confirmingOutcome !== null && confirmingOutcome !== 'cleared_to_fly'
+  const money = (cents: number) => `$${(cents / 100).toFixed(2)}`
 
-  function runSubmit(mode: 'send_invoice' | 'mark_paid') {
+  function runSubmit(mode: SubmitMode) {
     setSubmitAttempted(true)
 
     if (readingsError) { setError(readingsError); return }
@@ -294,6 +310,8 @@ export default function AdminCheckoutActions({
       waiverReason:        paymentWaived ? waiverReason.trim() : undefined,
       readings:            totalReadings,
       suppressPaymentRequestEmail: !paymentWaived && mode === 'mark_paid',
+      skipPromoCredit:     hasFreeCheckoutCredit ? chargeDespiteCredit : undefined,
+      promoChargeLandingFees: promoChargesLanding || undefined,
       manualPayment: !paymentWaived && mode === 'mark_paid'
         ? {
             paymentMethod: manualPaymentMethod,
@@ -313,6 +331,12 @@ export default function AdminCheckoutActions({
   function executeMarkPaidAction() {
     setSubmissionConfirmation(null)
     runSubmit('mark_paid')
+  }
+
+  function executePromoFree() {
+    setSubmissionConfirmation(null)
+    setShowManualPaymentFields(false)
+    runSubmit('promo_free')
   }
 
   function handleSaveAndSendInvoice() {
@@ -492,6 +516,83 @@ export default function AdminCheckoutActions({
           <p className="text-sm text-[#4b6390] leading-relaxed">{outcome.body}</p>
         </div>
 
+        {hasFreeCheckoutCredit && !paymentWaived && (
+          <div className={`mt-4 rounded-xl border p-3.5 sm:p-4 ${chargeDespiteCredit ? 'border-[#152d5a]/10 bg-[#f7f9fc]' : 'border-amber-300 bg-amber-50'}`}>
+            <div className="flex items-start gap-2.5">
+              <span className="material-symbols-outlined text-[20px] text-amber-600">redeem</span>
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-[#152d5a]">Covered by Black Friday free checkout</p>
+                <p className="mt-0.5 text-sm leading-relaxed text-[#4b6390]">
+                  This pilot bought a Black Friday block time package, so the checkout flight (aircraft hire) is free.
+                  Enter the readings and landings as normal, then choose how to handle the landing fees.
+                </p>
+
+                {!chargeDespiteCredit && (
+                  <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2" role="radiogroup" aria-label="Landing fees">
+                    {([
+                      {
+                        key: 'free' as const,
+                        title: 'Landing fees free too',
+                        body: 'Settle everything. Invoice $0, nothing to pay.',
+                        amount: '$0.00',
+                      },
+                      {
+                        key: 'charge' as const,
+                        title: 'Charge landing fees only',
+                        body: 'Flight is free; the pilot pays the landing fees.',
+                        amount: money(landingSubtotalCents),
+                      },
+                    ]).map((opt) => {
+                      const selected = promoLandingMode === opt.key
+                      return (
+                        <button
+                          key={opt.key}
+                          type="button"
+                          role="radio"
+                          aria-checked={selected}
+                          onClick={() => {
+                            setPromoLandingMode(opt.key)
+                            // amounts change — drop any half-filled manual payment
+                            setShowManualPaymentFields(false)
+                            setManualAmount('')
+                            setSubmissionConfirmation(null)
+                          }}
+                          disabled={isPending}
+                          className={`flex items-start gap-2.5 rounded-lg border px-3 py-2.5 text-left transition-colors ${
+                            selected ? 'border-[#152d5a] bg-white shadow-sm ring-1 ring-[#152d5a]' : 'border-amber-200 bg-white/60 hover:border-amber-400'
+                          }`}
+                        >
+                          <span className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 ${selected ? 'border-[#152d5a]' : 'border-slate-300'}`}>
+                            {selected ? <span className="h-2 w-2 rounded-full bg-[#152d5a]" /> : null}
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            <span className="flex items-baseline justify-between gap-2">
+                              <span className="text-sm font-semibold text-[#152d5a]">{opt.title}</span>
+                              <span className="text-sm font-semibold tabular-nums text-[#152d5a]">{opt.amount}</span>
+                            </span>
+                            <span className="mt-0.5 block text-xs leading-relaxed text-[#4b6390]">{opt.body}</span>
+                          </span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+
+                <label className="mt-3 flex items-center gap-2 text-sm text-[#152d5a]">
+                  <input
+                    type="checkbox"
+                    checked={chargeDespiteCredit}
+                    onChange={(e) => setChargeDespiteCredit(e.target.checked)}
+                    disabled={isPending}
+                    className="h-4 w-4 rounded border-slate-300"
+                  />
+                  Charge normally instead (keep the free checkout for later)
+                </label>
+              </div>
+            </div>
+          </div>
+        )}
+
         {outcomeSupportsWaiver && (
           <div className="mt-4 rounded-xl border border-[#152d5a]/10 bg-[#f7f9fc] p-3.5 sm:p-4">
             <p className="text-sm font-medium text-[#152d5a] mb-3">Charge customer for this checkout?</p>
@@ -670,7 +771,15 @@ export default function AdminCheckoutActions({
                     <span className="text-xs sm:text-sm text-gray-500">Landing charges</span>
                     <span className="text-xs sm:text-sm font-medium text-gray-900 tabular-nums flex-shrink-0">${(landingSubtotalCents / 100).toFixed(2)}</span>
                   </div>
-                  {customerCreditCents > 0 && (
+                  {promoActive && (
+                    <div className="flex items-baseline justify-between gap-2 py-1.5">
+                      <span className="text-xs sm:text-sm text-amber-700">
+                        Black Friday free checkout{promoChargesLanding ? ' (flight)' : ' (flight + landings)'}
+                      </span>
+                      <span className="text-xs sm:text-sm font-medium text-amber-700 tabular-nums flex-shrink-0">−{money(promoDiscountCents)}</span>
+                    </div>
+                  )}
+                  {customerCreditCents > 0 && creditApplicable > 0 && (
                     <div className="flex items-baseline justify-between gap-2 py-1.5">
                       <span className="text-xs sm:text-sm text-gray-500">Customer credit applied</span>
                       <span className="text-xs sm:text-sm font-medium text-emerald-700 tabular-nums flex-shrink-0">${(creditApplicable / 100).toFixed(2)}</span>
@@ -733,12 +842,22 @@ export default function AdminCheckoutActions({
                 {submissionConfirmation ? (
                   <div className="rounded-xl border border-[#152d5a]/10 bg-[#f7f9fc] p-3.5 sm:p-4">
                     <p className="text-sm font-semibold text-[#152d5a]">
-                      {submissionConfirmation === 'send_invoice' ? 'Send invoice to customer?' : 'Mark payment as already received?'}
+                      {submissionConfirmation === 'promo_free'
+                        ? 'Settle this checkout with the Black Friday free checkout?'
+                        : submissionConfirmation === 'send_invoice'
+                        ? (promoChargesLanding ? 'Send landing fee invoice to customer?' : 'Send invoice to customer?')
+                        : (promoChargesLanding ? 'Mark landing fees as already paid?' : 'Mark payment as already received?')}
                     </p>
                     <p className="mt-1 text-xs sm:text-sm text-[#4b6390] leading-relaxed">
-                      {submissionConfirmation === 'send_invoice'
-                        ? 'This will finalise the checkout outcome and send a payment request to the customer. The booking will move to awaiting payment. Customer will need to log in and pay before their booking is confirmed.'
-                        : 'This will finalise the checkout outcome and mark the booking as fully paid. No invoice will be sent to the customer. Use this only if payment was already received (cash, bank transfer, or in person).'}
+                      {submissionConfirmation === 'promo_free'
+                        ? 'The checkout flight and landing fees are covered by the pilot’s Black Friday free checkout. The invoice is created at $0, the booking is completed and the outcome takes effect straight away. Nothing is charged and any account credit is left untouched.'
+                        : submissionConfirmation === 'send_invoice'
+                        ? (promoChargesLanding
+                          ? `The checkout flight is free (Black Friday). The customer is asked to pay only the landing fees of ${money(estimatedAmountDue)} from their booking page.`
+                          : 'This will finalise the checkout outcome and send a payment request to the customer. The booking will move to awaiting payment. Customer will need to log in and pay before their booking is confirmed.')
+                        : (promoChargesLanding
+                          ? `The checkout flight is free (Black Friday) and the landing fees of ${money(estimatedAmountDue)} are recorded as already received. No invoice email is sent.`
+                          : 'This will finalise the checkout outcome and mark the booking as fully paid. No invoice will be sent to the customer. Use this only if payment was already received (cash, bank transfer, or in person).')}
                     </p>
                     <div className="mt-4 flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2.5 sm:gap-3">
                       <button
@@ -751,22 +870,56 @@ export default function AdminCheckoutActions({
                       </button>
                       <button
                         type="button"
-                        onClick={submissionConfirmation === 'send_invoice' ? executeSaveAndSendInvoice : executeMarkPaidAction}
+                        onClick={
+                          submissionConfirmation === 'promo_free'
+                            ? executePromoFree
+                            : submissionConfirmation === 'send_invoice'
+                            ? executeSaveAndSendInvoice
+                            : executeMarkPaidAction
+                        }
                         disabled={isPending}
-                        className={`rounded-xl px-4 py-2.5 sm:py-3 text-sm font-medium text-white transition-colors disabled:opacity-50 text-center ${
-                          submissionConfirmation === 'send_invoice'
-                            ? 'bg-blue-600 hover:bg-blue-700'
-                            : 'bg-green-600 hover:bg-green-700'
+                        className={`rounded-xl px-4 py-2.5 sm:py-3 text-sm font-medium transition-colors disabled:opacity-50 text-center ${
+                          submissionConfirmation === 'promo_free'
+                            ? 'bg-[#ffcf5c] text-[#0f2547] hover:bg-[#ffc23a] font-semibold'
+                            : submissionConfirmation === 'send_invoice'
+                            ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                            : 'bg-green-600 hover:bg-green-700 text-white'
                         }`}
                       >
                         <LoadingButtonContent loading={isPending} loadingLabel="Saving…">
-                          {submissionConfirmation === 'send_invoice'
+                          {submissionConfirmation === 'promo_free'
+                            ? 'Yes, settle with free checkout ($0)'
+                            : submissionConfirmation === 'send_invoice'
                             ? 'Yes, send invoice — customer will pay'
                             : 'Yes, mark as paid — no invoice'}
                         </LoadingButtonContent>
                       </button>
                     </div>
                   </div>
+                ) : promoActive && !promoChargesLanding ? (
+                  <button
+                    type="button"
+                    onClick={() => setSubmissionConfirmation('promo_free')}
+                    disabled={isPending}
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#ffcf5c] px-4 py-3 text-sm font-semibold text-[#0f2547] transition-colors hover:bg-[#ffc23a] disabled:opacity-50"
+                  >
+                    <span className="material-symbols-outlined text-[18px]">redeem</span>
+                    <LoadingButtonContent loading={isPending} loadingLabel="Saving…">
+                      Settle with Black Friday free checkout ($0)
+                    </LoadingButtonContent>
+                  </button>
+                ) : promoChargesLanding && estimatedAmountDue === 0 ? (
+                  // Account credit covers the landing fees — nothing left to collect.
+                  <button
+                    type="button"
+                    onClick={handleSaveAndSendInvoice}
+                    disabled={isPending}
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#152d5a] px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-[#102243] disabled:opacity-50"
+                  >
+                    <LoadingButtonContent loading={isPending} loadingLabel="Saving…">
+                      Complete checkout (landing fees paid from account credit)
+                    </LoadingButtonContent>
+                  </button>
                 ) : (
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                     <button
@@ -776,7 +929,9 @@ export default function AdminCheckoutActions({
                       className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
                     >
                       <LoadingButtonContent loading={isPending} loadingLabel="Saving…">
-                        Send Invoice (customer pays later)
+                        {promoChargesLanding
+                          ? `Send Landing Fee Invoice (${money(estimatedAmountDue)})`
+                          : 'Send Invoice (customer pays later)'}
                       </LoadingButtonContent>
                     </button>
                     <button
@@ -786,7 +941,11 @@ export default function AdminCheckoutActions({
                       className="inline-flex items-center justify-center gap-2 rounded-lg bg-green-700 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-green-800 disabled:opacity-50"
                     >
                       <LoadingButtonContent loading={isPending} loadingLabel="Saving…">
-                        {showManualPaymentFields ? 'Confirm and Complete' : 'Mark as Already Paid (settle now)'}
+                        {showManualPaymentFields
+                          ? 'Confirm and Complete'
+                          : promoChargesLanding
+                          ? 'Landing Fees Already Paid (settle now)'
+                          : 'Mark as Already Paid (settle now)'}
                       </LoadingButtonContent>
                     </button>
                   </div>

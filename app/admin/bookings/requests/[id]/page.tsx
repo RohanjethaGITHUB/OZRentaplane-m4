@@ -721,6 +721,14 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
   })
 
   const customerCreditCents = (creditRow as { balance_cents?: number } | null)?.balance_cents ?? 0
+  // Black Friday: unused free checkout credit for this pilot (checkout bookings only).
+  const { count: freeCheckoutCreditCount } = bookingType === 'checkout'
+    ? await supabase
+        .from('checkout_credits')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', booking.booking_owner_user_id)
+        .eq('status', 'available')
+    : { count: 0 }
   const activeBlockTime = (activeBlockTimeRow as { hours_remaining: number; rate_per_hour: number; expires_at: string } | null)
     ? {
         hoursRemaining: Number((activeBlockTimeRow as { hours_remaining: number }).hours_remaining),
@@ -2014,6 +2022,7 @@ export default async function AdminBookingDetailPage({ params }: PageProps) {
                 customerId={booking.booking_owner_user_id}
                 scheduledStart={booking.scheduled_start}
                 noShowLocked={customer?.account_status === 'blocked' && customer?.account_lock_reason === 'checkout_no_show'}
+                hasFreeCheckoutCredit={(freeCheckoutCreditCount ?? 0) > 0}
               />
             </div>
           )}

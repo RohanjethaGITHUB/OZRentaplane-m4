@@ -8,6 +8,7 @@ import { revalidatePath } from "next/cache";
 import { PAYMENT_CONFIG } from "@/lib/payments/config";
 import { validateBlockTimeTopupHours } from "@/lib/payments/block-time-topup";
 import { getOutstandingOverageInvoices, overageGateMessage } from "@/lib/payments/block-time-overage";
+import { canPurchaseBlockTime, getLivePromotion, getPackagePromo } from "@/lib/promotions";
 import {
   notifyAdminBankTransferProofUploaded,
   notifyBankTransferProofReceived,
@@ -184,12 +185,30 @@ export async function createBlockTimePurchaseIntent(packageId: string) {
 
   const { data: profile, error: profileErr } = await supabase
     .from("profiles")
-    .select("id, full_name, email, stripe_customer_id, default_payment_method_id")
+    .select("id, full_name, email, stripe_customer_id, default_payment_method_id, account_status, pilot_clearance_status")
     .eq("id", user.id)
     .single();
 
   if (profileErr || !profile) {
     throw new Error("Profile not found.");
+  }
+
+  // Eligibility: cleared pilots always; uncleared pilots only while a live
+  // promotion allows it. Blocked/archived accounts never. Enforced here so the
+  // rule cannot be bypassed by calling the action directly.
+  const livePromotion = await getLivePromotion(supabase);
+  if (
+    !canPurchaseBlockTime({
+      accountStatus: profile.account_status,
+      pilotClearanceStatus: profile.pilot_clearance_status,
+      promotion: livePromotion,
+    })
+  ) {
+    throw new Error(
+      profile.account_status && profile.account_status !== "active"
+        ? "Your account cannot purchase block time right now. Please contact OZ Rent A Plane."
+        : "Block time can be purchased once your checkout is cleared."
+    );
   }
 
   const { data: pkg, error: pkgErr } = await supabase
@@ -202,6 +221,24 @@ export async function createBlockTimePurchaseIntent(packageId: string) {
   if (pkgErr || !pkg) {
     throw new Error("Selected package is not available.");
   }
+
+  // Promotion terms are locked in when the payment session is created, so a
+  // payment confirmed by Stripe just after the sale ends still gets the offer.
+  // They travel in Stripe metadata (server-set) — never trusted from the DB row.
+  const packagePromo = getPackagePromo(livePromotion, pkg.id);
+  const promoMetadata: Record<string, string> = packagePromo
+    ? {
+        promotion_id: packagePromo.promotionId,
+        promo_bonus_hours: String(packagePromo.bonusHours),
+        promo_free_checkout: packagePromo.freeCheckout ? "true" : "false",
+      }
+    : {};
+  const promoDescription = packagePromo
+    ? [
+        packagePromo.bonusHours > 0 ? `+${packagePromo.bonusHours} bonus hr` : null,
+        packagePromo.freeCheckout ? "free checkout flight" : null,
+      ].filter(Boolean).join(" + ")
+    : "";
 
   let stripeCustomerId = profile.stripe_customer_id ?? null;
   if (!stripeCustomerId) {
@@ -269,7 +306,9 @@ export async function createBlockTimePurchaseIntent(packageId: string) {
           currency: "aud",
           product_data: {
             name: `OZ Rent A Plane - ${pkg.name} Block Time`,
-            description: `${pkg.hours} hours at ${Number(pkg.rate_per_hour).toFixed(0)}/hr`,
+            description: promoDescription
+              ? `${pkg.hours} hours at ${Number(pkg.rate_per_hour).toFixed(0)}/hr · Black Friday: ${promoDescription}`
+              : `${pkg.hours} hours at ${Number(pkg.rate_per_hour).toFixed(0)}/hr`,
           },
           unit_amount: amountCents,
         },
@@ -287,6 +326,7 @@ export async function createBlockTimePurchaseIntent(packageId: string) {
       hours_purchased: String(pkg.hours),
       rate_per_hour: String(pkg.rate_per_hour),
       validity_days: String(pkg.validity_days),
+      ...promoMetadata,
     },
     payment_intent_data: ({
       setup_future_usage: "off_session",
@@ -299,6 +339,7 @@ export async function createBlockTimePurchaseIntent(packageId: string) {
         hours_purchased: String(pkg.hours),
         rate_per_hour: String(pkg.rate_per_hour),
         validity_days: String(pkg.validity_days),
+        ...promoMetadata,
       },
       description: `OZ Rent A Plane - ${pkg.name} (${pkg.hours}h Block Time)`,
     } as any),
@@ -353,12 +394,16 @@ export async function createBlockTimeTopupIntent(purchaseId: string, hoursReques
 
   const { data: profile, error: profileErr } = await supabase
     .from("profiles")
-    .select("id, full_name, email, stripe_customer_id")
+    .select("id, full_name, email, stripe_customer_id, account_status")
     .eq("id", user.id)
     .single();
 
   if (profileErr || !profile) {
     throw new Error("Profile not found.");
+  }
+
+  if (profile.account_status && profile.account_status !== "active") {
+    throw new Error("Your account cannot purchase block time right now. Please contact OZ Rent A Plane.");
   }
 
   type TopupPurchaseRow = {

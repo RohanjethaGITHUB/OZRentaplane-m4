@@ -519,7 +519,7 @@ export async function generateStandardBookingInvoicePdf(params: {
   const surchargeDollars = roundToCents(surchargeCents / 100)
   if (surchargeDollars > 0 && isOnlinePayment) {
     lineItems.push({
-      description: 'Online Payment Surcharge (Card 1.7% + 30¢)',
+      description: 'Operational fee',
       quantity: 1,
       unitPrice: surchargeDollars,
       amount: surchargeDollars,

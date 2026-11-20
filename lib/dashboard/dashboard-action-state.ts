@@ -78,6 +78,8 @@ export type DashboardActionState = {
   nextMilestone?: string
   journeyStep: DashboardJourneyStep
   severityReason?: string
+  /** Gold pill shown on the hero and next-step card (e.g. "Black Friday package"). */
+  promoBadge?: string
 }
 
 export type DashboardActionStateInput = {

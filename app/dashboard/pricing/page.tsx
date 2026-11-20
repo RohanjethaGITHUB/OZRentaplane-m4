@@ -10,6 +10,7 @@ import BlockTimePackageScroller from './BlockTimePackageScroller'
 import BlockTimePurchaseButton from './BlockTimePurchaseButton'
 import BlockTimeTopupCard from './BlockTimeTopupCard'
 import { createBlockTimeOveragePaymentSession } from '@/app/actions/payment'
+import { canPurchaseBlockTime, formatPromotionDate, getLivePromotion, getPackagePromo } from '@/lib/promotions'
 
 export const metadata = { title: 'Pricing | OZRentAPlane' }
 
@@ -125,6 +126,15 @@ export default async function BlockTimePage({
   const { data: { user } } = await getCachedUser()
   if (!user) redirect('/login')
 
+  const [livePromotion, { count: freeCheckoutCredits }] = await Promise.all([
+    getLivePromotion(supabase),
+    supabase
+      .from('checkout_credits')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', user.id)
+      .eq('status', 'available'),
+  ])
+
   const [{ data: profile }, { data: packageRows }, { data: purchaseRows }, { data: usageRows }, { data: overageRows }] = await Promise.all([
     getCachedProfile(user.id, 'dashboard'),
     supabase
@@ -176,6 +186,19 @@ export default async function BlockTimePage({
   ])
 
   const isCleared = profile?.pilot_clearance_status === 'cleared_to_fly'
+  const canBuy = canPurchaseBlockTime({
+    accountStatus: profile?.account_status,
+    pilotClearanceStatus: profile?.pilot_clearance_status,
+    promotion: livePromotion,
+  })
+  const buyingViaPromotion = canBuy && !isCleared
+  const promoBonusSummary = livePromotion
+    ? (packageRows ?? [])
+        .map((pkg) => ({ hours: Number(pkg.hours), promo: getPackagePromo(livePromotion, pkg.id) }))
+        .filter((x) => (x.promo?.bonusHours ?? 0) > 0)
+        .map((x) => `${x.hours} hr +${x.promo!.bonusHours}`)
+        .join(' · ')
+    : ''
   const packages = (packageRows ?? []) as PackageRow[]
   const purchases = (purchaseRows ?? []) as unknown as PurchaseRow[]
   const usage = (usageRows ?? []) as unknown as UsageRow[]
@@ -262,11 +285,49 @@ export default async function BlockTimePage({
       <div className="mx-auto max-w-[1320px] space-y-8 pb-16 pt-2">
         <section id="packages">
           <SectionHeading icon="shopping_bag" label="Buy block time" />
-          {!isCleared ? (
+          {livePromotion ? (
+            <div className="relative mb-6 overflow-hidden rounded-2xl bg-[#0a1424] p-5 text-white shadow-[0_18px_50px_rgba(2,10,22,0.25)] sm:p-6">
+              <div className="pointer-events-none absolute -right-16 -top-20 h-56 w-56 rounded-full bg-[#ffcf5c]/20 blur-3xl" />
+              <div className="relative flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#ffcf5c]">Black Friday sale · ends {formatPromotionDate(livePromotion.ends_at)}</p>
+                  <h3 className="mt-1 text-2xl font-bold tracking-tight md:text-3xl">
+                    {livePromotion.headline || 'Free checkout flight with every flight block'}
+                  </h3>
+                  <p className="mt-1 text-sm text-white/70">
+                    {promoBonusSummary ? `Same package prices, more flying: ${promoBonusSummary}.` : 'Same package prices.'}
+                    {buyingViaPromotion ? ' New pilots can buy now — your checkout flight is included free.' : ''}
+                  </p>
+                </div>
+                <a href="/black-friday" className="shrink-0 rounded-xl bg-[#ffcf5c] px-4 py-2.5 text-center text-xs font-bold uppercase tracking-[0.12em] text-[#0a1424] transition-colors hover:bg-white">
+                  See the offer
+                </a>
+              </div>
+            </div>
+          ) : null}
+
+          {(freeCheckoutCredits ?? 0) > 0 ? (
+            <div className="mb-4 flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-emerald-900">
+              <span className="material-symbols-outlined text-[20px] text-emerald-600">redeem</span>
+              <div>
+                <p className="text-sm font-semibold">Free checkout flight ready to use</p>
+                <p className="mt-0.5 text-sm leading-relaxed">
+                  Your checkout flight is included with your block time package — book it from the{' '}
+                  <Link href="/dashboard/checkout" className="font-semibold underline">Checkout</Link> page. You won&apos;t be charged for it.
+                </p>
+              </div>
+            </div>
+          ) : null}
+
+          {!canBuy ? (
             <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-900">
-              <p className="text-sm font-semibold">Checkout clearance required</p>
+              <p className="text-sm font-semibold">
+                {profile?.account_status && profile.account_status !== 'active' ? 'Purchases unavailable' : 'Checkout clearance required'}
+              </p>
               <p className="mt-1 text-sm leading-relaxed">
-                Block Time can be purchased once your checkout is cleared.
+                {profile?.account_status && profile.account_status !== 'active'
+                  ? 'Your account cannot purchase block time right now. Please contact OZ Rent A Plane.'
+                  : 'Block Time can be purchased once your checkout is cleared.'}
               </p>
             </div>
           ) : null}
@@ -330,6 +391,7 @@ export default async function BlockTimePage({
                 const featured = index === packages.length - 2 && packages.length >= 3
                 const packageSlug = slugifyPackageName(pkg.name)
                 const isSelected = selectedPackageSlug === packageSlug
+                const promo = getPackagePromo(livePromotion, pkg.id)
                 return (
                   <PackageCard
                     key={pkg.id}
@@ -348,10 +410,11 @@ export default async function BlockTimePage({
                       totalPrice: Number(pkg.total_price),
                       validityDays: pkg.validity_days,
                       featured,
-                      badge: featured ? 'Best value' : null,
+                      badge: promo ? 'Black Friday' : featured ? 'Best value' : null,
                     }}
+                    promo={promo ? { bonusHours: promo.bonusHours, freeCheckout: promo.freeCheckout } : null}
                     action={
-                      isCleared ? (
+                      canBuy ? (
                         hasActivePackage ? (
                           <Link
                             href="/dashboard/purchases#top-up"
