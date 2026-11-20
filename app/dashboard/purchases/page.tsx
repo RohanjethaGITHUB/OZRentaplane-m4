@@ -24,6 +24,7 @@ type PurchaseRow = {
   status: string
   hours_purchased: number
   hours_remaining: number
+  bonus_hours?: number | null
   rate_per_hour: number
   amount_paid: number
   purchased_at: string
@@ -149,6 +150,7 @@ export default async function PurchaseHistoryPage({
         status,
         hours_purchased,
         hours_remaining,
+        bonus_hours,
         rate_per_hour,
         amount_paid,
         purchased_at,
@@ -559,8 +561,10 @@ export default async function PurchaseHistoryPage({
         {hasActivePackage ? (
           <div className="mt-6 flex flex-col gap-3">
             {activePurchases.map((purchase, index) => {
-              const used = Number(purchase.hours_purchased) - Number(purchase.hours_remaining)
-              const pct = Math.min(100, Math.max(0, (Number(purchase.hours_remaining) / Number(purchase.hours_purchased)) * 100))
+              const bonus = Number(purchase.bonus_hours ?? 0)
+              const totalHours = Number(purchase.hours_purchased) + bonus
+              const used = totalHours - Number(purchase.hours_remaining)
+              const pct = Math.min(100, Math.max(0, (Number(purchase.hours_remaining) / totalHours) * 100))
 
               return (
                 <div
@@ -583,7 +587,12 @@ export default async function PurchaseHistoryPage({
                     </div>
                     <p className="text-[14px] font-semibold text-[#152d5a]">
                       {Number(purchase.hours_remaining).toFixed(1)}h
-                      <span className="font-normal text-[#4b6390]"> of {Number(purchase.hours_purchased).toFixed(0)}h left</span>
+                      <span className="font-normal text-[#4b6390]"> of {totalHours % 1 === 0 ? totalHours.toFixed(0) : totalHours.toFixed(1)}h left</span>
+                      {bonus > 0 ? (
+                        <span className="ml-1.5 rounded-full bg-amber-50 px-2 py-0.5 align-middle text-[10px] font-bold uppercase tracking-wide text-amber-700">
+                          incl. {bonus} bonus
+                        </span>
+                      ) : null}
                     </p>
                   </div>
                   <div className="mt-3 h-2 overflow-hidden rounded-full bg-[#e2e8f0]">
@@ -610,18 +619,18 @@ export default async function PurchaseHistoryPage({
               </div>
               <p className="text-[14px] font-semibold text-slate-700">
                 {expiredHoursRemaining.toFixed(1)}h
-                <span className="font-normal text-[#4b6390]"> of {Number(latestExpiredPurchase.hours_purchased).toFixed(0)}h left</span>
+                <span className="font-normal text-[#4b6390]"> of {(Number(latestExpiredPurchase.hours_purchased) + Number(latestExpiredPurchase.bonus_hours ?? 0)).toFixed(0)}h left</span>
               </p>
             </div>
             <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-200">
               <div
                 className="h-full rounded-full bg-slate-400"
-                style={{ width: `${Math.min(100, (expiredHoursRemaining / Number(latestExpiredPurchase.hours_purchased)) * 100)}%` }}
+                style={{ width: `${Math.min(100, (expiredHoursRemaining / (Number(latestExpiredPurchase.hours_purchased) + Number(latestExpiredPurchase.bonus_hours ?? 0))) * 100)}%` }}
               />
             </div>
-            {Number(latestExpiredPurchase.hours_purchased) - expiredHoursRemaining > 0 ? (
+            {Number(latestExpiredPurchase.hours_purchased) + Number(latestExpiredPurchase.bonus_hours ?? 0) - expiredHoursRemaining > 0 ? (
               <p className="mt-1.5 text-[11px] text-[#4b6390]">
-                {(Number(latestExpiredPurchase.hours_purchased) - expiredHoursRemaining).toFixed(1)}h flown so far · {expiredHoursRemaining.toFixed(1)}h expired
+                {(Number(latestExpiredPurchase.hours_purchased) + Number(latestExpiredPurchase.bonus_hours ?? 0) - expiredHoursRemaining).toFixed(1)}h flown so far · {expiredHoursRemaining.toFixed(1)}h expired
               </p>
             ) : null}
           </div>
@@ -707,7 +716,8 @@ export default async function PurchaseHistoryPage({
                       {Number(purchase.hours_remaining) > 0 ? (
                         <span className="font-semibold text-[#152d5a]">{Number(purchase.hours_remaining).toFixed(1)}h remaining of </span>
                       ) : null}
-                      {Number(purchase.hours_purchased).toFixed(0)} hours at ${Number(purchase.rate_per_hour).toFixed(0)}/hr ·
+                      {Number(purchase.hours_purchased).toFixed(0)} hours at ${Number(purchase.rate_per_hour).toFixed(0)}/hr
+                      {Number(purchase.bonus_hours ?? 0) > 0 ? ` + ${Number(purchase.bonus_hours)} bonus` : ''} ·
                       purchased {formatDateFromISO(purchase.purchased_at)}
                       {purchase.status === 'active' ? (
                         <> · expires {formatDateFromISO(purchase.expires_at)}</>

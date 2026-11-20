@@ -12,6 +12,7 @@ import UnblockCustomerButton from './UnblockCustomerButton'
 import { CLEARANCE_ACTION } from './clearance-actions'
 import { DocumentReviewCards } from './VerdictPanel'
 import BlockTimePurchasesSection, { type AdminBlockTimePurchase } from './BlockTimePurchasesSection'
+import PromotionCustomerPanel from './PromotionCustomerPanel'
 import BlockTimeTopupsSection, { type AdminBlockTimeTopup } from './BlockTimeTopupsSection'
 import BlockTimeFlightInvoicesSection, { type AdminBlockTimeFlightInvoice } from './BlockTimeFlightInvoicesSection'
 import { formatDateFromISO } from '@/lib/formatDateTime'
@@ -1080,6 +1081,7 @@ export default function CustomerProfileTabs({
             </div>
           </div>
           <BlockTimePurchasesSection purchases={blockTimePurchases} />
+          <PromotionCustomerPanel customerId={customerId} />
           <BlockTimeTopupsSection topups={blockTimeTopups} />
           <BlockTimeFlightInvoicesSection invoices={blockTimeFlightInvoices} />
         </section>

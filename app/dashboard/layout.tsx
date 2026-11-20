@@ -6,6 +6,8 @@ import CustomerDashboardBackgroundOverlay from './CustomerDashboardBackgroundOve
 import { RealtimeProvider } from '@/components/realtime/RealtimeProvider'
 import { DashboardRealtimeListener } from '@/components/realtime/DashboardRealtimeListener'
 import { createPerfLogger } from '@/lib/perf/timing'
+import PromoMarquee from '@/components/marketing/PromoMarquee'
+import { getLivePromotion } from '@/lib/promotions'
 
 // Decorative clouds are client-only — keep them off the critical server path.
 const AtmoClouds = dynamic(() => import('@/components/AtmoClouds'), { ssr: false })
@@ -23,7 +25,7 @@ export default async function CustomerPortalLayout({ children }: { children: Rea
 
   // Profile + lightweight unread head-count + document issue check.
   // Do NOT load full verification_events history here — that blocked every /dashboard/* nav.
-  const [{ data: profile }, { count: unreadMessageCount }, { data: userDocs }] = await perf.time(
+  const [{ data: profile }, { count: unreadMessageCount }, { data: userDocs }, livePromotion] = await perf.time(
     'customer_dashboard_layout',
     'profile_unread_badge_group',
     () => Promise.all([
@@ -40,6 +42,8 @@ export default async function CustomerPortalLayout({ children }: { children: Rea
         .from('user_documents')
         .select('id, document_type, status, expiry_date, red_card_expiry_month, red_card_expiry_year')
         .eq('user_id', user.id),
+      // Live sale (Black Friday) → scrolling strip under the portal navbar.
+      getLivePromotion(supabase),
     ]),
     (result) => ({
       rowCount: (result[0].data ? 1 : 0) + (result[1].count ?? 0) + (result[2].data?.length ?? 0),
@@ -68,6 +72,8 @@ export default async function CustomerPortalLayout({ children }: { children: Rea
     }
     return false
   })
+
+  const promoMarqueeText = livePromotion?.marquee_text?.trim() || null
 
   markTotal()
 
@@ -102,6 +108,15 @@ export default async function CustomerPortalLayout({ children }: { children: Rea
         />
         <div className="pointer-events-none fixed top-[64px] left-0 right-0 z-40 h-[2px] bg-gradient-to-r from-transparent via-[#f59e0b]/30 to-transparent" />
         <CustomerDashboardBackgroundOverlay />
+
+        {promoMarqueeText ? (
+          <PromoMarquee
+            text={promoMarqueeText}
+            href="/dashboard/pricing"
+            ctaLabel="View packages"
+            placement="inline"
+          />
+        ) : null}
 
         <main className="relative z-10 mx-auto w-full max-w-[1440px] px-3 md:px-4 lg:px-6 pb-24 pt-4 md:pb-14 md:pt-4">
           <div className="relative">

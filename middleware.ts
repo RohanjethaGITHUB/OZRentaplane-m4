@@ -18,6 +18,7 @@ function isAnonymousSkippablePath(pathname: string): boolean {
     '/resources',
     '/cessna-172',
     '/checkout-process',
+    '/black-friday',
     '/pilotRequirements',
     '/safety-disclaimer',
     '/privacy',

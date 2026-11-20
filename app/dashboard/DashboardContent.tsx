@@ -448,10 +448,13 @@ export default function DashboardContent({
     ? 'Security'
     : undefined
 
+  // Re-open only when a *different* notice arrives — toastNotice is rebuilt on
+  // every render, so depending on the object would re-open it after closing.
+  const toastKey = toastNotice ? `${toastNotice.title}|${toastNotice.message}` : ''
   useEffect(() => {
-    if (!toastNotice) return
+    if (!toastKey) return
     setSuccessModalOpen(true)
-  }, [toastNotice])
+  }, [toastKey])
 
   // Automatically open the invoice PDF in a new tab upon successful purchase
   useEffect(() => {
@@ -527,18 +530,6 @@ export default function DashboardContent({
 
   return (
     <div className="space-y-5">
-      {toastNotice ? (
-        <SuccessModal
-          open={successModalOpen}
-          eyebrow={toastEyebrow}
-          title={toastNotice.title}
-          message={toastNotice.message}
-          actionLabel={toastNotice.actionLabel}
-          actionUrl={toastNotice.actionUrl}
-          onClose={() => setSuccessModalOpen(false)}
-        />
-      ) : null}
-
       {mustChangePassword && !passwordUpdated ? (
         <section className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -591,6 +582,12 @@ export default function DashboardContent({
               <span className="material-symbols-outlined text-[14px]">{heroIcon(actionState.tone)}</span>
               {actionState.heroLabel}
             </div>
+            {actionState.promoBadge ? (
+              <div className="inline-flex items-center gap-1.5 rounded-full border border-[#ffcf5c]/60 bg-[#ffcf5c]/15 px-3.5 py-1.5 text-[12.5px] font-semibold text-[#ffcf5c]">
+                <span className="material-symbols-outlined text-[14px]" aria-hidden="true">sell</span>
+                {actionState.promoBadge}
+              </div>
+            ) : null}
 
             {/* Tablet/Medium screen: Beside booking confirmed pill — Temporarily commented out
             <Link

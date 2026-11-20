@@ -36,13 +36,24 @@ const FLEET_ITEMS = [
   { label: 'More coming soon', href: null, disabled: true },
 ]
 
+type NavLink = { label: string; href: string; disabled?: boolean; promo?: boolean }
+
 export default function Navbar({
   initialUser,
   hideCustomerCheckoutLink = false,
+  topOffsetPx = 0,
+  promoLink = null,
 }: {
   initialUser: User | null
   hideCustomerCheckoutLink?: boolean
+  /** Height of a fixed strip above the header (e.g. the sale marquee). */
+  topOffsetPx?: number
+  /** While a sale is live, replaces the "Shop" slot (e.g. Black Friday Sale). */
+  promoLink?: { label: string; href: string } | null
 }) {
+  const navLinks: NavLink[] = promoLink
+    ? NAV_LINKS.map((link) => (link.label === 'Shop' ? { label: promoLink.label, href: promoLink.href, promo: true } : link))
+    : NAV_LINKS
   const [menuOpen, setMenuOpen] = useState(false)
   const [mobileFleetOpen, setMobileFleetOpen] = useState(false)
   const [user, setUser] = useState<User | null>(initialUser)
@@ -83,6 +94,7 @@ export default function Navbar({
     <header
       className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${isAuthPage ? 'opacity-40 hover:opacity-100' : ''}`}
       style={{
+        top: topOffsetPx,
         backgroundColor: 'rgba(22, 48, 92, 0.95)',
         backdropFilter: 'blur(20px)',
         WebkitBackdropFilter: 'blur(20px)',
@@ -199,7 +211,7 @@ export default function Navbar({
             </div>
           </div>
 
-          {NAV_LINKS.map((link) => {
+          {navLinks.map((link) => {
             const isActive =
               pathname === link.href ||
               (link.href === '/become-an-instructor' &&
@@ -219,6 +231,25 @@ export default function Navbar({
                     Coming soon
                   </div>
                 </div>
+              )
+            }
+
+            if (link.promo) {
+              return (
+                <a
+                  key={link.label}
+                  href={link.href}
+                  className={`relative inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-3 py-1 font-sans text-[13.5px] font-bold transition-colors duration-150 ${isActive
+                    ? 'border-[#ffcf5c] bg-[#ffcf5c] text-[#0c1a2e]'
+                    : 'border-[#ffcf5c]/60 text-[#ffcf5c] hover:bg-[#ffcf5c] hover:text-[#0c1a2e]'
+                    }`}
+                >
+                  <span className="relative flex h-1.5 w-1.5">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-current opacity-60" />
+                    <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-current" />
+                  </span>
+                  {link.label}
+                </a>
               )
             }
 
@@ -284,7 +315,7 @@ export default function Navbar({
       {menuOpen && (
         <div
           className="lg:hidden bg-deep-ink/98 backdrop-blur-xl border-t border-white/[0.08] px-6 pt-5 flex flex-col gap-4 overflow-y-auto"
-          style={{ maxHeight: 'calc(100dvh - 84px)', paddingBottom: 'calc(1.25rem + env(safe-area-inset-bottom, 0px))' }}
+          style={{ maxHeight: `calc(100dvh - ${84 + topOffsetPx}px)`, paddingBottom: 'calc(1.25rem + env(safe-area-inset-bottom, 0px))' }}
         >
           {/* Fleet expandable */}
           <div>
@@ -331,7 +362,7 @@ export default function Navbar({
             )}
           </div>
 
-          {NAV_LINKS.map((link) => {
+          {navLinks.map((link) => {
             const isActive = pathname === link.href
 
             if (link.disabled) {
@@ -352,7 +383,7 @@ export default function Navbar({
                 key={link.label}
                 href={link.href}
                 onClick={() => setMenuOpen(false)}
-                className={`font-sans text-[15px] font-medium transition-colors ${isActive ? 'text-white' : 'text-white/80 hover:text-white'}`}
+                className={`font-sans text-[15px] transition-colors ${link.promo ? 'font-bold text-[#ffcf5c]' : `font-medium ${isActive ? 'text-white' : 'text-white/80 hover:text-white'}`}`}
               >
                 {link.label}
               </a>

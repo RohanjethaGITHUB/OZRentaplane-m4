@@ -13,6 +13,8 @@ export type AdminBlockTimePurchase = {
   status: string
   hours_purchased: number
   hours_remaining: number
+  /** Free promotion / manual bonus hours included in hours_remaining. */
+  bonus_hours?: number
   rate_per_hour: number
   amount_paid: number
   purchased_at: string
@@ -92,7 +94,8 @@ export default function BlockTimePurchasesSection({ purchases }: { purchases: Ad
         <p className="text-[12px] text-[#4b6390]">No block time purchases yet.</p>
       ) : (
         purchases.map((purchase) => {
-          const hoursUsed = Number(purchase.hours_purchased) - Number(purchase.hours_remaining)
+          // hours_remaining includes free bonus hours, so compare against paid + bonus.
+          const hoursUsed = Math.round((Number(purchase.hours_purchased) + Number(purchase.bonus_hours ?? 0) - Number(purchase.hours_remaining)) * 100) / 100
           const isUntouched = purchase.status === 'active' && hoursUsed === 0
           const refundBlockedReason =
             purchase.status === 'refunded'

@@ -610,6 +610,9 @@ export async function submitAndPayPostFlight(
       .eq('user_id', userId)
       .eq('status', 'active')
       .gt('hours_remaining', 0)
+      // Same order as process_block_time_flight, so the preview names the
+      // package the hours will actually be drawn from (queued promo packages).
+      .order('queue_position', { ascending: true, nullsFirst: false })
       .order('activated_at', { ascending: true })
       .limit(1)
       .maybeSingle(),

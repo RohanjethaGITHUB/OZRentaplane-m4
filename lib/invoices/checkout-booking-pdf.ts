@@ -118,7 +118,11 @@ export async function generateCheckoutBookingInvoicePdf(params: {
     : null
 
   const isPaid = chkInvoice.status === 'paid'
-  const isWaived = chkInvoice.status === 'waived' || Boolean(chkInvoice.waiver_reason)
+  // Black Friday free checkout (migrations 115/121): shown as a discount line,
+  // not as a waiver, so the totals match what the pilot actually paid / owes.
+  const isPromo = (chkInvoice.waiver_reason ?? '').startsWith('Promotion:')
+  const promoLandingCharged = isPromo && (chkInvoice.waiver_reason ?? '').includes('landing fees charged')
+  const isWaived = !isPromo && (chkInvoice.status === 'waived' || Boolean(chkInvoice.waiver_reason))
   const invoiceNumber = chkInvoice.invoice_number ?? `CHK-${chkInvoice.id.slice(0, 8).toUpperCase()}`
 
   const rawAircraft = booking.aircraft
@@ -130,7 +134,13 @@ export async function generateCheckoutBookingInvoicePdf(params: {
   const aircraftModel = cleanAircraftModel(rawModel, aircraftReg)
 
   const statusLabel = isPaid ? 'PAID' : isWaived ? 'WAIVED' : 'PAYMENT REQUIRED'
-  const footerNote = isPaid
+  const footerNote = isPromo && !promoLandingCharged
+    ? 'Your checkout flight and landing fees were covered by the free checkout included with your Black Friday block time package. Nothing to pay.'
+    : isPromo && isPaid
+    ? 'Your checkout flight was covered by your Black Friday free checkout. This receipt confirms payment of the landing fees. All prices include GST.'
+    : isPromo
+    ? 'Your checkout flight is covered by your Black Friday free checkout. Only the landing fees are payable. All prices include GST.'
+    : isPaid
     ? 'This receipt confirms full payment for your checkout flight. All prices include GST.'
     : isWaived
     ? `This checkout invoice has been waived by operations management${chkInvoice.waiver_reason ? `: ${chkInvoice.waiver_reason}` : ''}. No payment is required.`
@@ -217,6 +227,24 @@ export async function generateCheckoutBookingInvoicePdf(params: {
     })
   }
 
+  // Black Friday free checkout discount: hire always, landing fees unless charged.
+  if (isPromo) {
+    const landingDollars = roundToCents(
+      lineItems.filter((item) => item.description.startsWith('Landing Fee')).reduce((sum, item) => sum + item.amount, 0),
+    )
+    const discount = roundToCents(baseFlightDollars + (promoLandingCharged ? 0 : landingDollars))
+    if (discount > 0) {
+      lineItems.push({
+        description: promoLandingCharged
+          ? 'Black Friday free checkout — checkout flight included with block time package'
+          : 'Black Friday free checkout — flight and landing fees included with block time package',
+        quantity: 1,
+        unitPrice: -discount,
+        amount: -discount,
+      })
+    }
+  }
+
   // Online Card Payment Surcharge (if paid online via Stripe or surcharge applied)
   const isOnlinePayment = chkInvoice.payment_method === 'stripe' || chkInvoice.payment_method === 'card' || Boolean(chkInvoice.stripe_payment_intent_id)
   let surchargeCents = Number(
@@ -233,7 +261,7 @@ export async function generateCheckoutBookingInvoicePdf(params: {
   const surchargeDollars = roundToCents(surchargeCents / 100)
   if (surchargeDollars > 0 && isOnlinePayment) {
     lineItems.push({
-      description: 'Online Payment Surcharge (Card 1.7% + 30¢)',
+      description: 'Operational fee',
       quantity: 1,
       unitPrice: surchargeDollars,
       amount: surchargeDollars,

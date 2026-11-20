@@ -26,6 +26,8 @@ type Props = {
   /** CTA slot — the consuming page decides what buying means (link, form, button). */
   action?: ReactNode
   className?: string
+  /** Live promotion extras for this package (Black Friday). */
+  promo?: { bonusHours: number; freeCheckout: boolean } | null
 }
 
 function formatAud(value: number, maximumFractionDigits = 0): string {
@@ -61,6 +63,7 @@ export default function PackageCard({
   payfRatePerHour = 330,
   action,
   className = '',
+  promo = null,
 }: Props) {
   const dark = variant === 'dark'
   const featured = pkg.featured === true
@@ -125,6 +128,23 @@ export default function PackageCard({
         <p className={`text-xl font-semibold ${headingColor}`}>{totalLabel(pkg.totalPrice)}</p>
         {validity ? <p className={`mt-1 text-xs ${mutedColor}`}>{validity}</p> : null}
       </div>
+
+      {promo && (promo.bonusHours > 0 || promo.freeCheckout) ? (
+        <div className={`mt-4 rounded-xl border px-3 py-2.5 text-center ${dark ? 'border-[#ffcf5c]/40 bg-[#ffcf5c]/10' : 'border-[#f59e0b]/40 bg-[#fffbeb]'}`}>
+          <p className={`text-[10px] font-bold uppercase tracking-[0.18em] ${dark ? 'text-[#ffcf5c]' : 'text-[#b45309]'}`}>Black Friday</p>
+          {promo.freeCheckout ? (
+            <p className={`mt-0.5 text-[13px] font-semibold ${headingColor}`}>Free checkout flight</p>
+          ) : null}
+          {promo.bonusHours > 0 ? (
+            <p className={`text-[13px] font-semibold ${dark ? 'text-[#ffcf5c]' : 'text-[#b45309]'}`}>
+              +{promo.bonusHours} bonus flight {promo.bonusHours === 1 ? 'hour' : 'hours'}
+              <span className={`ml-1 font-normal ${mutedColor}`}>
+                ({Number(hoursNumber(pkg.hours)) + promo.bonusHours} hrs total)
+              </span>
+            </p>
+          ) : null}
+        </div>
+      ) : null}
 
       {pkg.description ? (
         <p className={`mt-3 text-center text-xs leading-relaxed ${mutedColor}`}>{pkg.description}</p>

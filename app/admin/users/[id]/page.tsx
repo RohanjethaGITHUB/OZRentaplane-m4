@@ -201,7 +201,7 @@ export default async function AdminUserPage({
       .maybeSingle(),
     supabase
       .from('pilot_block_time_purchases')
-      .select('id, status, hours_purchased, hours_remaining, rate_per_hour, amount_paid, purchased_at, expires_at, refund_amount, refunded_at, refund_stripe_id, stripe_payment_intent_id, package:block_time_packages ( name )')
+      .select('id, status, hours_purchased, hours_remaining, bonus_hours, rate_per_hour, amount_paid, purchased_at, expires_at, refund_amount, refunded_at, refund_stripe_id, stripe_payment_intent_id, package:block_time_packages ( name )')
       .eq('user_id', params.id)
       .order('purchased_at', { ascending: false }),
     supabase
@@ -230,6 +230,7 @@ export default async function AdminUserPage({
       status: row.status,
       hours_purchased: Number(row.hours_purchased),
       hours_remaining: Number(row.hours_remaining),
+      bonus_hours: Number(row.bonus_hours ?? 0),
       rate_per_hour: Number(row.rate_per_hour),
       amount_paid: Number(row.amount_paid),
       purchased_at: row.purchased_at,

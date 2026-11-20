@@ -1936,6 +1936,12 @@ export async function markCheckoutOutcome(input: {
   paymentWaived?:       boolean
   waiverReason?:        string
   suppressPaymentRequestEmail?: boolean
+  // Promotion: when the pilot holds a free checkout credit (Black Friday block
+  // time purchase) it is applied automatically. true = charge normally instead.
+  skipPromoCredit?: boolean
+  // Promotion free checkout: true = aircraft hire free but landing fees still
+  // charged (invoice reduced to the landing subtotal). false/omitted = all free.
+  promoChargeLandingFees?: boolean
   // Mark-paid path: settle the checkout invoice in the same action so the
   // outcome and the settlement cannot be split by a client-side failure.
   manualPayment?: {
@@ -2086,14 +2092,54 @@ export async function markCheckoutOutcome(input: {
     )
   }
 
-  const finalBookingStatus   = rpcRows[0].out_final_booking_status   as string
-  const finalClearanceStatus = rpcRows[0].out_pilot_clearance_status as string
+  let finalBookingStatus   = rpcRows[0].out_final_booking_status   as string
+  let finalClearanceStatus = rpcRows[0].out_pilot_clearance_status as string
+
+  // ── Promotion free checkout credit ─────────────────────────────────────────
+  // Covers the invoice at $0 (restoring any account credit it consumed),
+  // completes the booking and promotes clearance — in one DB transaction.
+  let coveredByPromotion = false
+  // Landing fees still owed after the free checkout (charge-landing-fees option).
+  let promoAmountDueCents = 0
+  if (!input.paymentWaived && !input.skipPromoCredit) {
+    // p_charge_landing_fees is only sent when used, so the "all free" path also
+    // works before migration 121 is applied.
+    const { data: creditRows, error: creditErr } = await createAdminClient().rpc(
+      'apply_checkout_credit_to_booking',
+      input.promoChargeLandingFees
+        ? { p_booking_id: input.bookingId, p_charge_landing_fees: true }
+        : { p_booking_id: input.bookingId },
+    )
+    if (creditErr) {
+      console.error('[markCheckoutOutcome] apply_checkout_credit_to_booking failed (invoice left as issued)', creditErr)
+      if (input.promoChargeLandingFees) {
+        throw new Error(
+          'The checkout outcome was recorded, but the Black Friday free checkout could not be applied ' +
+          `(${creditErr.message}). Run migration 121_free_checkout_landing_fee_option.sql, then refresh this page.`,
+        )
+      }
+    } else {
+      const applied = (Array.isArray(creditRows) ? creditRows[0] : creditRows) as
+        { out_credit_id?: string | null; out_amount_due_cents?: number | null } | null
+      if (applied?.out_credit_id) {
+        coveredByPromotion = true
+        promoAmountDueCents = Number(applied.out_amount_due_cents ?? 0)
+        if (promoAmountDueCents === 0) {
+          finalBookingStatus = 'completed'
+          finalClearanceStatus = input.outcome
+        }
+      }
+    }
+  }
+
   // True for credit-settled payment path AND for waiver path (both return 'completed')
   const isSettledByCredit    = finalBookingStatus === 'completed' && !input.paymentWaived
 
   // ── Status history ─────────────────────────────────────────────────────────
   const historyNote = input.paymentWaived
     ? `Checkout outcome: ${input.outcome}. Payment waived. Reason: ${input.waiverReason ?? ''}`.trim()
+    : coveredByPromotion
+    ? `Checkout outcome: ${input.outcome}. Covered by Black Friday free checkout credit${input.promoChargeLandingFees ? ' (landing fees charged)' : ''}. ${input.adminNote ?? ''}`.trim()
     : `Checkout outcome: ${input.outcome}. ${input.adminNote ?? ''}`.trim()
 
   await supabase.from('booking_status_history').insert({
@@ -2220,6 +2266,25 @@ export async function markCheckoutOutcome(input: {
     }
   }
 
+  if (coveredByPromotion) {
+    notifTitle = input.outcome === 'cleared_to_fly'
+      ? 'Checkout approved — free with your Black Friday package'
+      : 'Checkout recorded — free with your Black Friday package'
+    const promoNextStep: Record<typeof input.outcome, string> = {
+      cleared_to_fly:               'Aircraft bookings are now available.',
+      additional_checkout_required: 'An additional checkout session is required before you can be cleared to fly. You can book another checkout flight when you are ready.',
+      checkout_reschedule_required: 'Your checkout could not be fully assessed this time. You can book another checkout session when you are ready.',
+      not_currently_eligible:       'Based on your assessment, further training with a qualified instructor is required before you can continue with aircraft hire.',
+    }
+    notifBody = `Your checkout flight was covered by the free checkout included with your block time package — nothing to pay. ${promoNextStep[input.outcome]}`
+    if (promoAmountDueCents > 0) {
+      notifTitle = 'Checkout recorded — landing fees to pay'
+      notifBody =
+        `Your checkout flight is free with your Black Friday package. Only the landing fees of $${(promoAmountDueCents / 100).toFixed(2)} are left to pay. ` +
+        `Please pay them from your booking page. ${input.outcome === 'cleared_to_fly' ? 'Aircraft bookings open as soon as they are paid.' : promoNextStep[input.outcome]}`
+    }
+  }
+
   await supabase.from('verification_events').insert({
     user_id:       booking.booking_owner_user_id,
     actor_user_id: adminId,
@@ -2255,7 +2320,9 @@ export async function markCheckoutOutcome(input: {
       ? `${cleanType} (${aircraftRecord.registration})`
       : 'Cessna 172N (VH-KZG)'
 
-    const amountDueCents = rpcRows?.[0]?.out_amount_due_now_cents ?? (invoiceRecord?.total ? Math.round(invoiceRecord.total * 100) : 0)
+    const amountDueCents = coveredByPromotion
+      ? promoAmountDueCents
+      : rpcRows?.[0]?.out_amount_due_now_cents ?? (invoiceRecord?.total ? Math.round(invoiceRecord.total * 100) : 0)
     const amountFormatted = `$${(amountDueCents / 100).toFixed(2)} AUD`
     const flightDateFormatted = booking.scheduled_start
       ? new Date(booking.scheduled_start).toLocaleDateString('en-AU', { timeZone: 'Australia/Sydney', dateStyle: 'full' })
