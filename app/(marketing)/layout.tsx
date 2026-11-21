@@ -31,7 +31,11 @@ export default async function MarketingLayout({ children }: { children: React.Re
         topOffsetPx={offset}
         promoLink={livePromotion ? { label: 'Black Friday Sale', href: '/black-friday' } : null}
       />
-      {offset ? <div style={{ paddingTop: offset }}>{children}</div> : children}
+      {/* --promo-offset lets full-screen sections (home hero) lift bottom-pinned
+          content above the fold while the strip pushes the page down. */}
+      {offset ? (
+        <div style={{ paddingTop: offset, ['--promo-offset' as string]: `${offset}px` }}>{children}</div>
+      ) : children}
       <Footer />
     </>
   )

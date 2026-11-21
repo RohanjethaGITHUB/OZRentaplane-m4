@@ -30,6 +30,11 @@ const IS_SAFARI =
   typeof navigator !== 'undefined' &&
   /Safari\//.test(navigator.userAgent) &&
   !/Chrome\//.test(navigator.userAgent)
+/** iPhone / iPad (incl. iPadOS reporting as Mac). Every browser there is WebKit. */
+const IS_IOS =
+  typeof navigator !== 'undefined' &&
+  (/iP(hone|ad|od)/.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && (navigator as any).maxTouchPoints > 1))
 
 const HERO_TEXT = { line1: 'FLY', line2: 'YOUR WAY', showCta: true } as const
 
@@ -133,6 +138,9 @@ export default function HomeHeroScrollSequence() {
     (typeof navigator !== 'undefined' && (navigator as any).deviceMemory && (navigator as any).deviceMemory <= 4)
   const liteCloudFx = motionMode === 'reduced' || isMobileViewport || lowPowerDevice
   const reducedMotionStatusOn = forceReducedMotion || (!forceMotion && prefersReducedMotion)
+  // Show the SCROLL button once something is on screen: the video, or the still
+  // image when the video is unavailable / motion is reduced.
+  const scrollCueVisible = videoReady || videoFallback || (motionMode === 'reduced' && viewportReady)
   const browserLabel = useMemo(() => {
     if (typeof navigator === 'undefined') return 'Unknown'
     const ua = navigator.userAgent
@@ -199,6 +207,31 @@ export default function HomeHeroScrollSequence() {
     el.classList.add('hero-scene-heading-enter')
   }
 
+  /**
+   * "SCROLL ↓" button: glide to the start of the next scene; from the last
+   * scene (or when the animation is not running) glide past the hero to the
+   * page content. Scrolling drives the frames, so the animation plays along.
+   */
+  function scrollToNextScene() {
+    updateSectionMetrics()
+    const section = sectionRef.current
+    if (!section) return
+    const top = sectionTopRef.current
+    const scrollable = sectionScrollableRef.current
+    const scrollY = window.scrollY || window.pageYOffset
+    const progress = clamp((scrollY - top) / scrollable, 0, 1)
+    const frameNow = progress * (TOTAL_FRAMES - 1)
+
+    let targetY = top + section.offsetHeight // first content below the hero
+    if (videoReadyRef.current) {
+      const nextScene = SCENE_BOUNDARIES.find((scene) => scene.start > frameNow + 2)
+      if (nextScene) targetY = top + (nextScene.start / (TOTAL_FRAMES - 1)) * scrollable
+    }
+
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    window.scrollTo({ top: Math.round(targetY), behavior: reduce ? 'auto' : 'smooth' })
+  }
+
   function getSceneIndex(frame: number): number {
     if (frame <= SCENE_BOUNDARIES[0].end) return 0
     if (frame <= SCENE_BOUNDARIES[1].end) return 1
@@ -230,7 +263,7 @@ export default function HomeHeroScrollSequence() {
     })
   }
 
-  function applyBestFrame(playhead: number, _nowTs: number) {
+  function applyBestFrame(playhead: number, _nowTs: number, force = false) {
     if (!videoReadyRef.current || videoFallbackRef.current) return
     const vid = isMobileViewportRef.current
       ? videoMobileRef.current
@@ -247,8 +280,10 @@ export default function HomeHeroScrollSequence() {
       return
 
     // Safari: throttle seeks to every 3rd RAF tick
-    // Gives decoder 48ms per seek instead of 16ms
-    if (IS_SAFARI) {
+    // Gives decoder 48ms per seek instead of 16ms.
+    // `force` (scroll has stopped) always applies, so a skipped tick can never
+    // leave Safari parked on the wrong frame.
+    if (IS_SAFARI && !force) {
       safariSeekTickRef.current += 1
       if (safariSeekTickRef.current % 3 !== 0) return
     }
@@ -340,6 +375,8 @@ export default function HomeHeroScrollSequence() {
       rafRef.current = window.requestAnimationFrame(renderLoop)
       return
     }
+    // Scroll has come to rest: make sure the exact resting frame is shown.
+    applyBestFrame(currentFrameRef.current, ts, true)
     rafRef.current = null
   }
 
@@ -411,8 +448,31 @@ export default function HomeHeroScrollSequence() {
     }
     logHeroDiagnostics('video request started', vid)
 
+    // iOS (all browsers there) only paints frames after a seek once the video
+    // has played; muted inline play is allowed except in Low Power Mode.
+    // Only on iOS — every other browser paints paused seeks already, so their
+    // behaviour stays exactly as before.
+    const prime = () => {
+      if (!IS_IOS) return
+      const restore = () => {
+        vid.pause()
+        // put the video back on the frame the scroll position asked for
+        vid.currentTime = Math.max(0, lastAppliedTimeRef.current)
+      }
+      try {
+        vid.muted = true
+        const p = vid.play()
+        if (p && typeof p.then === 'function') p.then(restore, () => {})
+        else restore()
+      } catch {
+        /* ignored — the still image stays until data arrives */
+      }
+    }
+
     const activate = () => {
-      if (videoReadyRef.current || videoFallbackRef.current) return
+      // A slow video that arrives after the timeout still takes over
+      // (the timeout only means "keep showing the still image for now").
+      if (videoReadyRef.current) return
       if (videoInitTimeoutRef.current !== null) {
         window.clearTimeout(videoInitTimeoutRef.current)
         videoInitTimeoutRef.current = null
@@ -420,9 +480,11 @@ export default function HomeHeroScrollSequence() {
       vid.pause()
       vid.currentTime = 0
       videoReadyRef.current = true
+      videoFallbackRef.current = false
       heroDiagnosticsRef.current.loadedDataTime = performance.now()
       heroDiagnosticsRef.current.readyState = vid.readyState
       setVideoReady(true)
+      setVideoFallback(false)
       logHeroDiagnostics('loadeddata', vid)
       if (rafRef.current === null) {
         rafRef.current = window.requestAnimationFrame(renderLoop)
@@ -441,22 +503,45 @@ export default function HomeHeroScrollSequence() {
       activate()
     }
 
+    // First tap / click / key: browsers that skipped preloading (iOS Low
+    // Power Mode, Android Data Saver) are allowed to load + play now.
+    const gestureEvents = ['touchend', 'click', 'keydown'] as const
+    const onGesture = () => {
+      gestureEvents.forEach((e) => window.removeEventListener(e, onGesture))
+      if (videoReadyRef.current) return
+      if (vid.readyState === 0) vid.load()
+      prime()
+    }
+
     if (vid.readyState >= 3) {
       activate()
+      prime()
     } else {
-      vid.addEventListener('loadeddata', onLoadedData, { once: true })
+      // With <source> children the error fires on the <source>, not <video>;
+      // the last one erroring means every format failed.
+      const lastSource = vid.querySelector('source:last-of-type')
+      vid.addEventListener('loadeddata', onLoadedData)
+      vid.addEventListener('canplay', onLoadedData)
       vid.addEventListener('error', onError, { once: true })
+      lastSource?.addEventListener('error', onError, { once: true })
+      gestureEvents.forEach((e) => window.addEventListener(e, onGesture, { passive: true }))
+      // Some browsers ignore preload="auto" until asked explicitly.
+      if (vid.readyState === 0 && vid.networkState !== 2 /* NETWORK_LOADING */) vid.load()
+      prime()
       videoInitTimeoutRef.current = window.setTimeout(() => {
         if (videoReadyRef.current || videoFallbackRef.current) return
         videoFallbackRef.current = true
         heroDiagnosticsRef.current.fallbackTriggered = true
         heroDiagnosticsRef.current.readyState = vid.readyState
         setVideoFallback(true)
-        logHeroDiagnostics('video timeout fallback', vid)
+        logHeroDiagnostics('video timeout fallback (still waiting for data)', vid)
       }, VIDEO_INIT_TIMEOUT_MS)
       return () => {
         vid.removeEventListener('loadeddata', onLoadedData)
+        vid.removeEventListener('canplay', onLoadedData)
         vid.removeEventListener('error', onError)
+        lastSource?.removeEventListener('error', onError)
+        gestureEvents.forEach((e) => window.removeEventListener(e, onGesture))
         if (videoInitTimeoutRef.current !== null) {
           window.clearTimeout(videoInitTimeoutRef.current)
           videoInitTimeoutRef.current = null
@@ -564,6 +649,15 @@ export default function HomeHeroScrollSequence() {
 
     const onResize = () => updateSectionMetrics()
 
+    // The section height is in dvh, which changes when the mobile toolbar
+    // collapses (not always with a 'resize' event); late layout shifts also
+    // move it. Re-measure whenever its size really changes.
+    const resizeObserver =
+      typeof ResizeObserver !== 'undefined' && sectionRef.current
+        ? new ResizeObserver(onResize)
+        : null
+    if (resizeObserver && sectionRef.current) resizeObserver.observe(sectionRef.current)
+
     updateSectionMetrics()
     window.addEventListener('resize', onResize)
     window.addEventListener('orientationchange', onResize)
@@ -576,6 +670,7 @@ export default function HomeHeroScrollSequence() {
       if (introTimerRef.current !== null) window.clearTimeout(introTimerRef.current)
       if (typeof media.removeEventListener === 'function') media.removeEventListener('change', onMotionChange)
       else media.removeListener(onMotionChange as (this: MediaQueryList, ev: MediaQueryListEvent) => any)
+      resizeObserver?.disconnect()
       window.removeEventListener('resize', onResize)
       window.removeEventListener('orientationchange', onResize)
       window.removeEventListener('scroll', onScroll)
@@ -686,37 +781,45 @@ export default function HomeHeroScrollSequence() {
             ) : null}
           </div>
 
-          <div className="absolute left-1/2 -translate-x-1/2 bottom-[12svh] z-20 w-[min(92vw,48rem)] text-center">
+          <div className="absolute left-1/2 -translate-x-1/2 bottom-[calc(12svh+var(--promo-offset,0px))] z-20 w-[min(92vw,48rem)] text-center">
             <div
               ref={ctaWrapRef}
               className={`pointer-events-auto transition-opacity duration-500 ${sceneHeadings[sceneIndex]?.showCta ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
             >
-              <p className="mb-5 font-sans text-sm font-light leading-relaxed text-oz-muted md:mb-7 md:text-lg">
+              {/* Original size/weight; white + soft navy text-shadow so it reads on bright clouds. */}
+              <p className="mb-5 font-sans text-sm font-light leading-relaxed text-white [text-shadow:0_1px_2px_rgba(8,20,40,0.55),0_2px_12px_rgba(8,20,40,0.55)] md:mb-7 md:text-lg">
                 A modern platform for pilots — rent, fly, enjoy
               </p>
-              <a
-                href="/pilotRequirements"
-                className="inline-block whitespace-nowrap rounded-md bg-gradient-to-r from-clearsky to-panel-deep text-ink-deep font-sans font-bold tracking-widest uppercase text-[0.8rem] px-8 py-4 shadow-2xl shadow-clearsky/20 transition-all active:scale-95 hover:brightness-110"
-              >
-                SCHEDULE YOUR CHECKOUT FLIGHT
-              </a>
+              <div>
+                <a
+                  href="/pilotRequirements"
+                  className="inline-flex w-full max-w-[22rem] items-center justify-center gap-2 rounded-xl border border-[#ffcf5c]/40 bg-gradient-to-r from-[#0f2547] to-[#1a3a70] px-5 py-3.5 text-center font-sans text-[12px] font-bold uppercase leading-snug tracking-[0.12em] text-white shadow-[0_12px_32px_rgba(8,20,40,0.35)] transition-all hover:border-[#ffcf5c] hover:brightness-110 active:scale-95 sm:w-auto sm:max-w-none sm:whitespace-nowrap sm:px-8 sm:py-4 sm:text-[0.8rem] sm:tracking-widest"
+                >
+                  Schedule your checkout flight
+                  <span className="text-[#ffcf5c]" aria-hidden="true">→</span>
+                </a>
+              </div>
             </div>
           </div>
-          <div
-            className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-1 z-20 pointer-events-none"
+          <button
+            type="button"
+            onClick={scrollToNextScene}
+            aria-label="Scroll down"
+            tabIndex={scrollCueVisible ? 0 : -1}
+            className={`group absolute bottom-[calc(1.25rem+var(--promo-offset,0px))] left-1/2 -translate-x-1/2 z-20 flex min-h-[44px] min-w-[64px] flex-col items-center justify-center gap-1 rounded-full px-4 py-1.5 outline-none focus-visible:ring-2 focus-visible:ring-[#ffcf5c] ${scrollCueVisible ? 'cursor-pointer' : 'pointer-events-none'}`}
             style={{
-              opacity: videoReady ? 1 : 0,
+              opacity: scrollCueVisible ? 1 : 0,
               transition: 'opacity 0.5s ease-out 0.3s',
             }}
           >
             <span
-              className="text-white/50 uppercase tracking-widest"
+              className="uppercase tracking-widest text-white [text-shadow:0_1px_2px_rgba(8,20,40,0.6),0_2px_10px_rgba(8,20,40,0.5)]"
               style={{ fontSize: '10px' }}
             >
               SCROLL
             </span>
             <span
-              className="text-white/50"
+              className="text-[#ffcf5c] [filter:drop-shadow(0_1px_2px_rgba(8,20,40,0.6))]"
               aria-hidden="true"
             >
               <svg
@@ -733,7 +836,7 @@ export default function HomeHeroScrollSequence() {
                 <polyline points="6 9 12 15 18 9" />
               </svg>
             </span>
-          </div>
+          </button>
         </div>
 
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[30%] bg-gradient-to-t from-[#091421] via-[#0b111a]/30 to-transparent" />
