@@ -1590,7 +1590,53 @@ export async function recordManualPayment(input: RecordManualPaymentInput) {
       .limit(1)
       .maybeSingle();
 
-    if (!invoice) throw new Error("Booking invoice not found.");
+    if (!invoice) {
+      // Block time bookings have no booking_invoices row — their landing fee /
+      // overage invoices live in the `invoices` table. The admin page already
+      // sums those into the amount shown in this panel, so settle them here
+      // via the dedicated block time settlement path.
+      const { data: blockTimeInvoices, error: btErr } = await admin
+        .from("invoices")
+        .select("id, total, status")
+        .eq("booking_id", input.bookingId)
+        .eq("billing_mode", "block_time")
+        .eq("type", "flight")
+        .in("status", ["awaiting", "bank_transfer_pending_review"])
+        .order("created_at", { ascending: true });
+
+      if (btErr) throw new Error("Failed to load block time invoices for this booking.");
+      if (!blockTimeInvoices || blockTimeInvoices.length === 0) {
+        throw new Error("Booking invoice not found.");
+      }
+
+      if (blockTimeInvoices.some((inv) => inv.status === "bank_transfer_pending_review")) {
+        return {
+          success: false,
+          error: "The customer has submitted bank transfer proof that is awaiting review. Approve or reject it in the Bank Transfer Review panel instead.",
+        };
+      }
+
+      const totalDueCents = blockTimeInvoices.reduce(
+        (sum, inv) => sum + Math.round(Number(inv.total) * 100),
+        0
+      );
+      if (input.amountCents !== totalDueCents) {
+        return {
+          success: false,
+          error: `Amount must match the outstanding block time invoice total of $${(totalDueCents / 100).toFixed(2)}.`,
+        };
+      }
+
+      for (const inv of blockTimeInvoices) {
+        await adminSettleBlockTimeInvoice({
+          invoiceId: inv.id,
+          paymentMethod,
+          note: trimmedNote ?? undefined,
+        });
+      }
+
+      return { success: true };
+    }
 
     const { error: ledgerError } = await admin
       .from("customer_payment_ledger")

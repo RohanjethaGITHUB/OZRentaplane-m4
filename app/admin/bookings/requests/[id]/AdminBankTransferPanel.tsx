@@ -72,7 +72,7 @@ export default function AdminBankTransferPanel({
         })
 
         if (!result?.success) {
-          setError("Failed to record manual payment.")
+          setError(("error" in (result ?? {}) && (result as { error?: string }).error) || "Failed to record manual payment.")
           return
         }
 

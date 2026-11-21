@@ -9,7 +9,7 @@ const REDUCED_MOTION_SMOOTHING_TAU_MS = 60
 const MOBILE_FULL_MOTION_SMOOTHING_TAU_MS = 120
 const MOBILE_REDUCED_MOTION_SMOOTHING_TAU_MS = 70
 const DESKTOP_MAX_FRAME_STEP_PER_TICK = 2.1
-const MOBILE_MAX_FRAME_STEP_PER_TICK = 1.8
+const MOBILE_MAX_FRAME_STEP_PER_TICK = 3.0  // seeks are now gated on the decoder, so the playhead can keep up with flicks
 const INTRO_DURATION_MS = 3000
 const WORD_FLY_DELAY_MS = 220
 const WORD_YOUR_DELAY_MS = 700
@@ -52,9 +52,11 @@ export default function HomeHeroScrollSequence() {
   const videoFallbackRef = useRef(false)
   const lastAppliedTimeRef = useRef(0)
   const safariSeekTickRef = useRef(0)
+  const pendingSeekTimeRef = useRef<number | null>(null)
   const isMobileViewportRef = useRef(false)
   const cloudWrapRef = useRef<HTMLDivElement | null>(null)
   const ctaWrapRef = useRef<HTMLDivElement | null>(null)
+  const scrollCueRef = useRef<HTMLButtonElement | null>(null)
   const sceneHeadingRef = useRef<HTMLDivElement | null>(null)
 
   const rafRef = useRef<number | null>(null)
@@ -79,10 +81,14 @@ export default function HomeHeroScrollSequence() {
   // before any video/canvas mounts, avoiding hydration mismatch
   const [isMobileViewport, setIsMobileViewport] = useState(false)
   const [viewportReady, setViewportReady] = useState(false)
+  // iPhone/iPad: H.264 MP4 first (hardware decode). Decided on the client, before
+  // the <video> mounts (it only renders once viewportReady), so no hydration mismatch.
+  const [preferMp4, setPreferMp4] = useState(false)
   useEffect(() => {
     const mobile = window.matchMedia('(max-width: 767px)').matches
     setIsMobileViewport(mobile)
     isMobileViewportRef.current = mobile
+    setPreferMp4(IS_IOS)
     setViewportReady(true)
   }, [])
   useEffect(() => {
@@ -175,6 +181,13 @@ export default function HomeHeroScrollSequence() {
   }
 
   function updateCtaVisibility(playhead: number) {
+    // SCROLL cue: navy text over the bright cloud frames, white once the darker
+    // cockpit / harbour frames start (same point the clouds fade out).
+    const cue = scrollCueRef.current
+    if (cue) {
+      const tone = playhead >= CLOUD_FADE_START_FRAME ? 'dark' : 'light'
+      if (cue.dataset.tone !== tone) cue.dataset.tone = tone
+    }
     const el = ctaWrapRef.current
     if (!el) return
     let opacity = 1
@@ -278,6 +291,23 @@ export default function HomeHeroScrollSequence() {
 
     if (Math.abs(targetTime - lastAppliedTimeRef.current) < 0.001)
       return
+
+    // Phones: one seek at a time. A phone decoder needs longer than a screen
+    // refresh per 1080p frame; queueing a new seek every tick makes the picture
+    // freeze and then jump. Keep only the newest target and apply it from the
+    // 'seeked' handler the moment the decoder is free.
+    // iPad (desktop-width layout) gets this too instead of the Safari 3rd-tick
+    // throttle, which capped it at ~20 fps.
+    if (isMobileViewportRef.current || IS_IOS) {
+      if (vid.seeking) {
+        pendingSeekTimeRef.current = targetTime
+        return
+      }
+      pendingSeekTimeRef.current = null
+      lastAppliedTimeRef.current = targetTime
+      vid.currentTime = targetTime
+      return
+    }
 
     // Safari: throttle seeks to every 3rd RAF tick
     // Gives decoder 48ms per seek instead of 16ms.
@@ -435,7 +465,7 @@ export default function HomeHeroScrollSequence() {
 
     const sourceFamily = isMobileViewport ? 'mobile' : 'desktop'
     const sourceCandidates = isMobileViewport
-      ? ['/hero-mobile.webm', '/hero-mobile.mp4']
+      ? ['/hero-mobile.mp4', '/hero-mobile.webm']
       : ['/hero-desktop.webm', '/hero-desktop.mp4']
     videoRequestStartRef.current = performance.now()
     heroDiagnosticsRef.current = {
@@ -513,9 +543,22 @@ export default function HomeHeroScrollSequence() {
       prime()
     }
 
+    // Phones: apply the newest scroll target as soon as the previous seek is done.
+    pendingSeekTimeRef.current = null
+    const onSeeked = () => {
+      const pending = pendingSeekTimeRef.current
+      if (pending == null) return
+      pendingSeekTimeRef.current = null
+      if (Math.abs(pending - vid.currentTime) < 0.001) return
+      lastAppliedTimeRef.current = pending
+      vid.currentTime = pending
+    }
+    vid.addEventListener('seeked', onSeeked)
+
     if (vid.readyState >= 3) {
       activate()
       prime()
+      return () => vid.removeEventListener('seeked', onSeeked)
     } else {
       // With <source> children the error fires on the <source>, not <video>;
       // the last one erroring means every format failed.
@@ -537,6 +580,7 @@ export default function HomeHeroScrollSequence() {
         logHeroDiagnostics('video timeout fallback (still waiting for data)', vid)
       }, VIDEO_INIT_TIMEOUT_MS)
       return () => {
+        vid.removeEventListener('seeked', onSeeked)
         vid.removeEventListener('loadeddata', onLoadedData)
         vid.removeEventListener('canplay', onLoadedData)
         vid.removeEventListener('error', onError)
@@ -649,6 +693,18 @@ export default function HomeHeroScrollSequence() {
 
     const onResize = () => updateSectionMetrics()
 
+    // iOS Safari back/forward cache can restore the page with the video frame
+    // dropped (blank hero until the next scroll). Re-apply the current frame.
+    const onPageShow = (e: PageTransitionEvent) => {
+      if (!e.persisted) return
+      updateSectionMetrics()
+      lastAppliedTimeRef.current = -1
+      readScrollAndSetTarget()
+      applyBestFrame(currentFrameRef.current, performance.now(), true)
+      if (rafRef.current === null) rafRef.current = window.requestAnimationFrame(renderLoop)
+    }
+    window.addEventListener('pageshow', onPageShow)
+
     // The section height is in dvh, which changes when the mobile toolbar
     // collapses (not always with a 'resize' event); late layout shifts also
     // move it. Re-measure whenever its size really changes.
@@ -671,6 +727,7 @@ export default function HomeHeroScrollSequence() {
       if (typeof media.removeEventListener === 'function') media.removeEventListener('change', onMotionChange)
       else media.removeListener(onMotionChange as (this: MediaQueryList, ev: MediaQueryListEvent) => any)
       resizeObserver?.disconnect()
+      window.removeEventListener('pageshow', onPageShow)
       window.removeEventListener('resize', onResize)
       window.removeEventListener('orientationchange', onResize)
       window.removeEventListener('scroll', onScroll)
@@ -680,7 +737,10 @@ export default function HomeHeroScrollSequence() {
   }, [isMobileViewport, motionMode])
 
   return (
-    <section ref={sectionRef} className="hero-scroll-section relative bg-deep-ink" style={{ height: `${SCROLL_HEIGHT_VH}dvh` }} data-motion-mode={motionMode}>
+    // Height in svh (fallback vh), not dvh: dvh changes while scrolling on
+    // phones as the browser toolbar hides/shows, which re-lays out this tall
+    // section mid-scroll and makes the frame jump. svh never changes.
+    <section ref={sectionRef} className="hero-scroll-section relative bg-deep-ink" data-motion-mode={motionMode}>
       <div className="hero-scroll-sticky sticky top-0 overflow-hidden min-h-[100svh] min-h-[100dvh] bg-deep-ink">
         <picture className="absolute inset-0 z-0 block">
           <source media="(max-width: 767px)" srcSet="/Mobile-home-hero/MS1_000001.webp" />
@@ -705,8 +765,18 @@ export default function HomeHeroScrollSequence() {
             disablePictureInPicture
             aria-hidden="true"
           >
-            <source src="/hero-desktop.webm" type="video/webm" />
-            <source src="/hero-desktop.mp4" type="video/mp4" />
+            {preferMp4 ? (
+              <>
+                {/* iPad: MP4 first — VP9 WebM is software-decoded on iPadOS */}
+                <source src="/hero-desktop.mp4" type="video/mp4" />
+                <source src="/hero-desktop.webm" type="video/webm" />
+              </>
+            ) : (
+              <>
+                <source src="/hero-desktop.webm" type="video/webm" />
+                <source src="/hero-desktop.mp4" type="video/mp4" />
+              </>
+            )}
           </video>
         )}
         {viewportReady && motionMode !== 'reduced' && isMobileViewport && (
@@ -720,14 +790,22 @@ export default function HomeHeroScrollSequence() {
             disablePictureInPicture
             aria-hidden="true"
           >
-            <source src="/hero-mobile.webm" type="video/webm" />
+            {/* MP4 (H.264) first on phones: hardware-decoded on every phone, so
+                each scroll seek is fast. VP9 WebM is often software-decoded on
+                Android, which is what made scrubbing stutter. */}
             <source src="/hero-mobile.mp4" type="video/mp4" />
+            <source src="/hero-mobile.webm" type="video/webm" />
           </video>
         )}
 
 
         <div className="absolute inset-0 bg-gradient-to-b from-[#091421]/35 via-[#091421]/25 to-[#091421]/70 pointer-events-none" />
-        <div className="absolute inset-0 pointer-events-none" style={{ background: 'rgba(2,10,30,0.22)', mixBlendMode: 'multiply' }} />
+        {/* Full-screen blend layers are recomposited for every video frame —
+            costly on phone GPUs. Phones get a plain tint of the same strength. */}
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={isMobileViewport ? { background: 'rgba(2,10,30,0.16)' } : { background: 'rgba(2,10,30,0.22)', mixBlendMode: 'multiply' }}
+        />
         <HeroCloudLayers
           innerRef={cloudWrapRef}
           className={isMobileViewport ? '-translate-y-[4%]' : ''}
@@ -787,7 +865,8 @@ export default function HomeHeroScrollSequence() {
               className={`pointer-events-auto transition-opacity duration-500 ${sceneHeadings[sceneIndex]?.showCta ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
             >
               {/* Original size/weight; white + soft navy text-shadow so it reads on bright clouds. */}
-              <p className="mb-5 font-sans text-sm font-light leading-relaxed text-white [text-shadow:0_1px_2px_rgba(8,20,40,0.55),0_2px_12px_rgba(8,20,40,0.55)] md:mb-7 md:text-lg">
+              {/* Shown only over the bright cloud frames → brand navy with a soft white glow. */}
+              <p className="mb-5 font-sans text-sm font-medium leading-relaxed text-[#0f2547] [text-shadow:0_0_1px_rgba(255,255,255,0.9),0_0_8px_rgba(255,255,255,0.85),0_0_18px_rgba(255,255,255,0.6)] md:mb-7 md:text-lg">
                 A modern platform for pilots — rent, fly, enjoy
               </p>
               <div>
@@ -802,6 +881,8 @@ export default function HomeHeroScrollSequence() {
             </div>
           </div>
           <button
+            ref={scrollCueRef}
+            data-tone="light"
             type="button"
             onClick={scrollToNextScene}
             aria-label="Scroll down"
@@ -813,13 +894,13 @@ export default function HomeHeroScrollSequence() {
             }}
           >
             <span
-              className="uppercase tracking-widest text-white [text-shadow:0_1px_2px_rgba(8,20,40,0.6),0_2px_10px_rgba(8,20,40,0.5)]"
+              className="font-semibold uppercase tracking-widest text-[#0f2547] transition-colors duration-300 [text-shadow:0_0_1px_rgba(255,255,255,0.9),0_0_8px_rgba(255,255,255,0.85),0_0_16px_rgba(255,255,255,0.6)] group-data-[tone=dark]:text-white group-data-[tone=dark]:[text-shadow:0_0_1px_rgba(8,20,40,0.95),0_1px_2px_rgba(8,20,40,0.9),0_0_8px_rgba(8,20,40,0.75),0_0_18px_rgba(8,20,40,0.5)]"
               style={{ fontSize: '10px' }}
             >
               SCROLL
             </span>
             <span
-              className="text-[#ffcf5c] [filter:drop-shadow(0_1px_2px_rgba(8,20,40,0.6))]"
+              className="text-[#ffcf5c] [filter:drop-shadow(0_0_1px_rgba(8,20,40,0.95))_drop-shadow(0_1px_3px_rgba(8,20,40,0.8))]"
               aria-hidden="true"
             >
               <svg
@@ -865,6 +946,10 @@ export default function HomeHeroScrollSequence() {
         )}
 
         <style jsx>{`
+          :global(.hero-scroll-section) {
+            height: ${SCROLL_HEIGHT_VH}vh;
+            height: ${SCROLL_HEIGHT_VH}svh;
+          }
           @keyframes hero-word-reveal {
             0% { opacity: 0; transform: translate3d(0, 8px, 0) skewX(-4deg) rotate(-0.6deg); }
             100% { opacity: 1; transform: translate3d(0, 0, 0) skewX(0deg) rotate(0deg); }

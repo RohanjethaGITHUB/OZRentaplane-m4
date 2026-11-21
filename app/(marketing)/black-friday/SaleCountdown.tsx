@@ -35,14 +35,14 @@ export default function SaleCountdown({ target, label }: { target: string; label
 
   return (
     <div aria-live="off">
-      <p className="mb-2.5 text-[11px] font-bold uppercase tracking-[0.22em] text-white/50">{label}</p>
+      <p className="mb-2.5 text-[11px] font-bold uppercase tracking-[0.22em] text-white/85">{label}</p>
       <div className="grid grid-cols-4 gap-2">
         {cells.map((c) => (
-          <div key={c.unit} className="min-w-0 rounded-xl border border-white/10 bg-white/[0.04] px-1 py-2.5 text-center backdrop-blur-sm sm:px-2">
+          <div key={c.unit} className="min-w-0 rounded-xl border border-white/15 bg-[#0a1a33]/50 px-1 py-2.5 text-center backdrop-blur-sm sm:px-2">
             <span className="block font-sans text-[22px] font-bold tabular-nums text-white sm:text-2xl md:text-[28px]">
               {c.value == null ? '--' : String(c.value).padStart(2, '0')}
             </span>
-            <span className="mt-0.5 block text-[10px] font-semibold uppercase tracking-[0.12em] text-[#ffcf5c]/80 sm:tracking-[0.18em]">{c.unit}</span>
+            <span className="mt-0.5 block text-[10px] font-semibold uppercase tracking-[0.12em] text-[#ffcf5c] sm:tracking-[0.18em]">{c.unit}</span>
           </div>
         ))}
       </div>
