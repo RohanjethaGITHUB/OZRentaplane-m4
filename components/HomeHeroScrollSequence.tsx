@@ -9,6 +9,7 @@ const REDUCED_MOTION_SMOOTHING_TAU_MS = 60
 const MOBILE_FULL_MOTION_SMOOTHING_TAU_MS = 120
 const MOBILE_REDUCED_MOTION_SMOOTHING_TAU_MS = 70
 const DESKTOP_MAX_FRAME_STEP_PER_TICK = 2.1
+const FRAMES_MAX_FRAME_STEP_PER_TICK = 8
 const MOBILE_MAX_FRAME_STEP_PER_TICK = 3.0  // seeks are now gated on the decoder, so the playhead can keep up with flicks
 const INTRO_DURATION_MS = 3000
 const WORD_FLY_DELAY_MS = 220
@@ -81,16 +82,32 @@ export default function HomeHeroScrollSequence() {
   // before any video/canvas mounts, avoiding hydration mismatch
   const [isMobileViewport, setIsMobileViewport] = useState(false)
   const [viewportReady, setViewportReady] = useState(false)
-  // iPhone/iPad: H.264 MP4 first (hardware decode). Decided on the client, before
-  // the <video> mounts (it only renders once viewportReady), so no hydration mismatch.
-  const [preferMp4, setPreferMp4] = useState(false)
+  // iPhone / iPad: draw image frames on a canvas instead of scrubbing a <video>.
+  // iOS decides itself whether a page's video may load and whether a paused
+  // video repaints after a seek (Low Power Mode, low storage, data saving…),
+  // so scroll-scrubbed video is unreliable there — it can stay on the first
+  // frame or stutter. Images always load and draw instantly. Decided on the
+  // client before the media mounts (only after viewportReady) → no hydration
+  // mismatch. Desktop / Android keep the video, which works well there.
+  const [useFrames, setUseFrames] = useState(false)
+  const useFramesRef = useRef(false)
   useEffect(() => {
     const mobile = window.matchMedia('(max-width: 767px)').matches
     setIsMobileViewport(mobile)
     isMobileViewportRef.current = mobile
-    setPreferMp4(IS_IOS)
+    const params = new URLSearchParams(window.location.search)
+    // All touch devices (iPhone, iPad, Android phones/tablets) use the frames:
+    // identical, smooth behaviour everywhere and a smaller download than the
+    // phone video. Mouse/trackpad devices (Windows, Mac) keep the video.
+    const touchDevice = IS_IOS || window.matchMedia('(pointer: coarse)').matches
+    const frames = params.get('heroFrames') === '1' || (touchDevice && params.get('heroFrames') !== '0')
+    useFramesRef.current = frames
+    setUseFrames(frames)
     setViewportReady(true)
   }, [])
+  const canvasRef = useRef<HTMLCanvasElement | null>(null)
+  const frameImagesRef = useRef<(HTMLImageElement | null)[]>([])
+  const lastDrawnImageRef = useRef<HTMLImageElement | null>(null)
   useEffect(() => {
     isMobileViewportRef.current = isMobileViewport
   }, [isMobileViewport])
@@ -276,7 +293,44 @@ export default function HomeHeroScrollSequence() {
     })
   }
 
+  /** Draw the loaded frame nearest to `frameIndex` (frames load coarse → fine). */
+  function drawFrame(frameIndex: number, force = false) {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const frames = frameImagesRef.current
+    let img: HTMLImageElement | null = null
+    for (let d = 0; d < TOTAL_FRAMES && !img; d++) {
+      img = frames[frameIndex - d] ?? frames[frameIndex + d] ?? null
+    }
+    if (!img) return
+    if (!force && img === lastDrawnImageRef.current) return
+    lastDrawnImageRef.current = img
+
+    // Backing store at up to 2x DPR — sharp on iPhone, without the memory /
+    // fill cost of 3x.
+    const dpr = Math.min(window.devicePixelRatio || 1, 2)
+    const w = Math.max(1, Math.round(canvas.clientWidth * dpr))
+    const h = Math.max(1, Math.round(canvas.clientHeight * dpr))
+    if (canvas.width !== w || canvas.height !== h) {
+      canvas.width = w
+      canvas.height = h
+    }
+    const ctx = canvas.getContext('2d', { alpha: false })
+    if (!ctx) return
+    // object-fit: cover, same focal point as the <video> (mobile 50% 38%).
+    const scale = Math.max(w / img.naturalWidth, h / img.naturalHeight)
+    const dw = img.naturalWidth * scale
+    const dh = img.naturalHeight * scale
+    const focalY = isMobileViewportRef.current ? 0.38 : 0.5
+    ctx.drawImage(img, (w - dw) / 2, (h - dh) * focalY, dw, dh)
+  }
+
   function applyBestFrame(playhead: number, _nowTs: number, force = false) {
+    if (useFramesRef.current) {
+      if (!videoReadyRef.current) return
+      drawFrame(clamp(Math.round(playhead), 0, TOTAL_FRAMES - 1), force)
+      return
+    }
     if (!videoReadyRef.current || videoFallbackRef.current) return
     const vid = isMobileViewportRef.current
       ? videoMobileRef.current
@@ -370,10 +424,15 @@ export default function HomeHeroScrollSequence() {
           ? REDUCED_MOTION_SMOOTHING_TAU_MS
           : FULL_MOTION_SMOOTHING_TAU_MS)
 
+    // Frame (canvas) mode: drawing an already-decoded image is cheap, so the
+    // playhead may move further per tick — fast flicks and big jumps track the
+    // finger instead of trailing behind. Video modes keep their decoder limits.
     const maxFrameStep =
-      mobileViewport
-        ? MOBILE_MAX_FRAME_STEP_PER_TICK
-        : DESKTOP_MAX_FRAME_STEP_PER_TICK
+      useFramesRef.current
+        ? FRAMES_MAX_FRAME_STEP_PER_TICK
+        : mobileViewport
+          ? MOBILE_MAX_FRAME_STEP_PER_TICK
+          : DESKTOP_MAX_FRAME_STEP_PER_TICK
     const alpha = 1 - Math.exp(-dt / smoothingTauMs)
     const proposed = currentFrameRef.current + diff * alpha
 
@@ -454,6 +513,8 @@ export default function HomeHeroScrollSequence() {
       setVideoFallback(false)
       return
     }
+    // iOS uses the image-frame canvas (effect below); no video is mounted.
+    if (useFrames) return
 
     const vid = isMobileViewport ? vm : vd
     if (!vid) return
@@ -592,7 +653,75 @@ export default function HomeHeroScrollSequence() {
         }
       }
     }
-  }, [isMobileViewport, motionMode, viewportReady])
+  }, [isMobileViewport, motionMode, viewportReady, useFrames])
+
+  // ── iOS: image-frame sequence ────────────────────────────────────────────
+  // 160 resized frames (public/hero-frames, built by scripts/build-hero-frames.py;
+  // ~4.6 MB on phones — less than the video). Loaded coarse → fine (every 8th,
+  // 4th, 2nd, then all) so scrubbing works within moments and sharpens as the
+  // rest arrive. Each frame is decoded before use, so drawing never stalls.
+  useEffect(() => {
+    if (!viewportReady || motionMode === 'reduced' || !useFrames) return
+    let cancelled = false
+    const folder = isMobileViewport ? 'm' : 'd'
+    const images: (HTMLImageElement | null)[] = new Array(TOTAL_FRAMES).fill(null)
+    frameImagesRef.current = images
+    lastDrawnImageRef.current = null
+    videoReadyRef.current = false
+    setVideoReady(false)
+
+    // First frame, last frame (where the hero comes to rest), then coarse → fine.
+    const order: number[] = [0, TOTAL_FRAMES - 1]
+    const seen = new Set<number>(order)
+    for (const stride of [8, 4, 2, 1]) {
+      for (let i = 0; i < TOTAL_FRAMES; i += stride) {
+        if (!seen.has(i)) { seen.add(i); order.push(i) }
+      }
+    }
+    const FIRST_PASS = Math.ceil(TOTAL_FRAMES / 8) + 1 // every 8th frame + the last
+    let next = 0
+    let loaded = 0
+    heroDiagnosticsRef.current.selectedSource = `frames: /hero-frames/${folder}/`
+
+    const loadNext = () => {
+      if (cancelled || next >= order.length) return
+      const idx = order[next++]
+      const img = new Image()
+      img.decoding = 'async'
+      const done = (ok: boolean) => {
+        if (cancelled) return
+        if (ok) {
+          images[idx] = img
+          loaded += 1
+          if (!videoReadyRef.current && images[0] && loaded >= FIRST_PASS) {
+            videoReadyRef.current = true
+            setVideoReady(true)
+            logHeroDiagnostics('frames ready')
+            updateSectionMetrics()
+            readScrollAndSetTarget()
+            drawFrame(clamp(Math.round(currentFrameRef.current), 0, TOTAL_FRAMES - 1), true)
+            if (rafRef.current === null) rafRef.current = window.requestAnimationFrame(renderLoop)
+          } else if (videoReadyRef.current) {
+            // a closer frame may have arrived — redraw the current position
+            drawFrame(clamp(Math.round(currentFrameRef.current), 0, TOTAL_FRAMES - 1), true)
+          }
+        }
+        loadNext()
+      }
+      img.onload = () => {
+        if (typeof img.decode === 'function') img.decode().then(() => done(true), () => done(true))
+        else done(true)
+      }
+      img.onerror = () => done(false)
+      img.src = `/hero-frames/${folder}/${String(idx).padStart(3, '0')}.webp`
+    }
+    for (let i = 0; i < 6; i++) loadNext()
+
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewportReady, motionMode, useFrames, isMobileViewport])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -682,8 +811,17 @@ export default function HomeHeroScrollSequence() {
     previousTargetFrameRef.current = startFrame
 
     const onScroll = () => {
-      // Don't update target during intro/loading — prevents frame jump
-      // when overlay fades and avoids fighting the scroll lock touchmove listener
+      // The visitor started scrolling during the 1.5 s title intro: end the
+      // intro now so the animation follows the finger straight away (before,
+      // the page moved while the picture stayed put, then caught up).
+      if (!introDoneRef.current) {
+        const scrolled = (window.scrollY || window.pageYOffset) - sectionTopRef.current
+        if (scrolled > 4) {
+          if (introTimerRef.current !== null) window.clearTimeout(introTimerRef.current)
+          introDoneRef.current = true
+          setIntroDone(true)
+        }
+      }
       if (!introDoneRef.current || !videoReadyRef.current) return
       readScrollAndSetTarget()
       if (rafRef.current === null) {
@@ -691,7 +829,13 @@ export default function HomeHeroScrollSequence() {
       }
     }
 
-    const onResize = () => updateSectionMetrics()
+    const onResize = () => {
+      updateSectionMetrics()
+      // canvas backing size follows the element; redraw at the new size
+      if (useFramesRef.current && videoReadyRef.current) {
+        drawFrame(clamp(Math.round(currentFrameRef.current), 0, TOTAL_FRAMES - 1), true)
+      }
+    }
 
     // iOS Safari back/forward cache can restore the page with the video frame
     // dropped (blank hero until the next scroll). Re-apply the current frame.
@@ -699,6 +843,7 @@ export default function HomeHeroScrollSequence() {
       if (!e.persisted) return
       updateSectionMetrics()
       lastAppliedTimeRef.current = -1
+      lastDrawnImageRef.current = null
       readScrollAndSetTarget()
       applyBestFrame(currentFrameRef.current, performance.now(), true)
       if (rafRef.current === null) rafRef.current = window.requestAnimationFrame(renderLoop)
@@ -741,20 +886,34 @@ export default function HomeHeroScrollSequence() {
     // phones as the browser toolbar hides/shows, which re-lays out this tall
     // section mid-scroll and makes the frame jump. svh never changes.
     <section ref={sectionRef} className="hero-scroll-section relative bg-deep-ink" data-motion-mode={motionMode}>
-      <div className="hero-scroll-sticky sticky top-0 overflow-hidden min-h-[100svh] min-h-[100dvh] bg-deep-ink">
+      {/* Sticky panel height = LARGE viewport (lvh, see <style> below): it stays
+          covered when the mobile address bar slides away. With svh/dvh a navy
+          gap appeared under the hero on the first scroll. */}
+      <div className="hero-scroll-sticky sticky top-0 overflow-hidden bg-deep-ink">
         <picture className="absolute inset-0 z-0 block">
-          <source media="(max-width: 767px)" srcSet="/Mobile-home-hero/MS1_000001.webp" />
+          {/* Phones: first frame of the canvas sequence → identical handover. */}
+          <source media="(max-width: 767px)" srcSet="/hero-frames/m/000.webp" />
           <img
             src="/WebHomeHeroScroll/S1_000001.webp"
             alt=""
-            className={`absolute inset-0 h-full w-full object-cover object-center transition-opacity duration-500 ${videoReady ? 'opacity-0' : 'opacity-100'}`}
+            // Same focal point as the animation (phones 50% 38%), so nothing
+            // jumps when the animation takes over from this still image.
+            className={`absolute inset-0 h-full w-full object-cover object-[50%_38%] md:object-center transition-opacity duration-500 ${videoReady ? 'opacity-0' : 'opacity-100'}`}
             fetchPriority="high"
             decoding="async"
             aria-hidden="true"
           />
         </picture>
 
-        {viewportReady && motionMode !== 'reduced' && !isMobileViewport && (
+        {/* iPhone / iPad: image frames on a canvas (see useFrames). */}
+        {viewportReady && motionMode !== 'reduced' && useFrames && (
+          <canvas
+            ref={canvasRef}
+            className={`absolute inset-0 z-[1] h-full w-full transition-opacity duration-500 ${videoReady ? 'opacity-100' : 'opacity-0'}`}
+            aria-hidden="true"
+          />
+        )}
+        {viewportReady && motionMode !== 'reduced' && !useFrames && !isMobileViewport && (
           <video
             ref={videoDesktopRef}
             className={`absolute inset-0 z-[1] h-full w-full object-cover object-center transition-opacity duration-500 ${videoReady ? 'opacity-100' : 'opacity-0'}`}
@@ -765,21 +924,11 @@ export default function HomeHeroScrollSequence() {
             disablePictureInPicture
             aria-hidden="true"
           >
-            {preferMp4 ? (
-              <>
-                {/* iPad: MP4 first — VP9 WebM is software-decoded on iPadOS */}
-                <source src="/hero-desktop.mp4" type="video/mp4" />
-                <source src="/hero-desktop.webm" type="video/webm" />
-              </>
-            ) : (
-              <>
-                <source src="/hero-desktop.webm" type="video/webm" />
-                <source src="/hero-desktop.mp4" type="video/mp4" />
-              </>
-            )}
+            <source src="/hero-desktop.webm" type="video/webm" />
+            <source src="/hero-desktop.mp4" type="video/mp4" />
           </video>
         )}
-        {viewportReady && motionMode !== 'reduced' && isMobileViewport && (
+        {viewportReady && motionMode !== 'reduced' && !useFrames && isMobileViewport && (
           <video
             ref={videoMobileRef}
             className={`absolute inset-0 z-[1] h-full w-full object-cover object-[50%_38%] transition-opacity duration-500 ${videoReady ? 'opacity-100' : 'opacity-0'}`}
@@ -834,7 +983,9 @@ export default function HomeHeroScrollSequence() {
           </div>
         )}
 
-        <div className="absolute inset-0 z-10 px-6 md:px-12 lg:px-20">
+        {/* Text/CTA layer = SMALL viewport height (svh): bottom content always
+            sits above the mobile toolbar and never moves when it hides/shows. */}
+        <div className="hero-content-layer absolute inset-x-0 top-0 z-10 px-6 md:px-12 lg:px-20">
           <div className={`pt-[16vh] text-center transition-opacity duration-500 ${introDone || motionMode === 'reduced' ? 'opacity-100' : 'opacity-0'}`}>
             {sceneHeadings[0]?.line2 ? (
               <div
@@ -949,6 +1100,16 @@ export default function HomeHeroScrollSequence() {
           :global(.hero-scroll-section) {
             height: ${SCROLL_HEIGHT_VH}vh;
             height: ${SCROLL_HEIGHT_VH}svh;
+          }
+          /* Picture panel: largest viewport, so no gap when the toolbar hides. */
+          :global(.hero-scroll-sticky) {
+            height: 100vh;
+            height: 100lvh;
+          }
+          /* Text layer: smallest viewport, so CTA / SCROLL stay above the toolbar. */
+          :global(.hero-content-layer) {
+            height: 100vh;
+            height: 100svh;
           }
           @keyframes hero-word-reveal {
             0% { opacity: 0; transform: translate3d(0, 8px, 0) skewX(-4deg) rotate(-0.6deg); }
