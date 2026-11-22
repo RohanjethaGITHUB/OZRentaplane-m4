@@ -108,6 +108,7 @@ export default function HomeHeroScrollSequence() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const frameImagesRef = useRef<(HTMLImageElement | null)[]>([])
   const lastDrawnImageRef = useRef<HTMLImageElement | null>(null)
+  const framesLoadedRef = useRef(0)
   useEffect(() => {
     isMobileViewportRef.current = isMobileViewport
   }, [isMobileViewport])
@@ -315,7 +316,9 @@ export default function HomeHeroScrollSequence() {
       canvas.width = w
       canvas.height = h
     }
-    const ctx = canvas.getContext('2d', { alpha: false })
+    // Transparent canvas (default alpha): if the browser ever drops its
+    // contents, the still image underneath shows instead of a black hero.
+    const ctx = canvas.getContext('2d')
     if (!ctx) return
     // object-fit: cover, same focal point as the <video> (mobile 50% 38%).
     const scale = Math.max(w / img.naturalWidth, h / img.naturalHeight)
@@ -693,6 +696,7 @@ export default function HomeHeroScrollSequence() {
         if (ok) {
           images[idx] = img
           loaded += 1
+          framesLoadedRef.current = loaded
           if (!videoReadyRef.current && images[0] && loaded >= FIRST_PASS) {
             videoReadyRef.current = true
             setVideoReady(true)
@@ -709,16 +713,42 @@ export default function HomeHeroScrollSequence() {
         loadNext()
       }
       img.onload = () => {
-        if (typeof img.decode === 'function') img.decode().then(() => done(true), () => done(true))
-        else done(true)
+        // iPhone / iPad: use the frame as soon as it has loaded. On some iOS
+        // versions decode() on an image that is not in the page never settles
+        // (the loader stalled → hero stuck on frame 1, seen on iPhone 11), and
+        // forcing all 160 decodes holds ~590 MB of bitmaps. Safari decodes on
+        // draw and manages that memory itself.
+        if (IS_IOS || typeof img.decode !== 'function') return done(true)
+        // Others: pre-decode for jank-free first draws, but never wait > 400 ms.
+        let settled = false
+        const finish = () => { if (!settled) { settled = true; done(true) } }
+        img.decode().then(finish, finish)
+        window.setTimeout(finish, 400)
       }
       img.onerror = () => done(false)
       img.src = `/hero-frames/${folder}/${String(idx).padStart(3, '0')}.webp`
     }
     for (let i = 0; i < 6; i++) loadNext()
 
+    // Browsers may drop a canvas's pixels (memory pressure, tab backgrounded,
+    // GPU reset). Repaint the current frame whenever that can have happened.
+    const repaint = () => {
+      if (cancelled || !videoReadyRef.current) return
+      lastDrawnImageRef.current = null
+      drawFrame(clamp(Math.round(currentFrameRef.current), 0, TOTAL_FRAMES - 1), true)
+    }
+    const onVisibility = () => { if (document.visibilityState === 'visible') repaint() }
+    const canvas = canvasRef.current
+    canvas?.addEventListener('contextrestored', repaint)
+    canvas?.addEventListener('contextlost', () => { lastDrawnImageRef.current = null })
+    document.addEventListener('visibilitychange', onVisibility)
+    window.addEventListener('focus', repaint)
+
     return () => {
       cancelled = true
+      canvas?.removeEventListener('contextrestored', repaint)
+      document.removeEventListener('visibilitychange', onVisibility)
+      window.removeEventListener('focus', repaint)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [viewportReady, motionMode, useFrames, isMobileViewport])
@@ -898,7 +928,9 @@ export default function HomeHeroScrollSequence() {
             alt=""
             // Same focal point as the animation (phones 50% 38%), so nothing
             // jumps when the animation takes over from this still image.
-            className={`absolute inset-0 h-full w-full object-cover object-[50%_38%] md:object-center transition-opacity duration-500 ${videoReady ? 'opacity-0' : 'opacity-100'}`}
+            // Frame (canvas) mode keeps this image visible underneath the canvas,
+            // so a dropped/blank canvas can never show as a black hero.
+            className={`absolute inset-0 h-full w-full object-cover object-[50%_38%] md:object-center transition-opacity duration-500 ${videoReady && !useFrames ? 'opacity-0' : 'opacity-100'}`}
             fetchPriority="high"
             decoding="async"
             aria-hidden="true"
@@ -1092,6 +1124,7 @@ export default function HomeHeroScrollSequence() {
             <div>Scene: {sceneIndex + 1}</div>
             <div>Device: {browserLabel}</div>
             <div>Frame: {Math.round(currentFrameRef.current) + 1}/{TOTAL_FRAMES}</div>
+            {useFrames ? <div>Frames loaded: {framesLoadedRef.current}/{TOTAL_FRAMES} · {videoReady ? 'animating' : 'waiting'}</div> : null}
             <div className="hidden">{debugTick}</div>
           </div>
         )}
