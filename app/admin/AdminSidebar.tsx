@@ -33,6 +33,7 @@ type BadgeKey =
   | 'postFlightReview'
   | 'bookingPayments'
   | 'bookingCancellations'
+  | 'blockTimeBankTransfers'
   | 'bookingOnHold'
   | 'messagesUnread'
 
@@ -51,6 +52,12 @@ const NAV_GROUPS: NavGroupType[] = [
     items: [
       { label: 'Booking Directory', href: '/admin/bookings/flights' },
     ],
+  },
+  {
+    title: 'Block Time Purchases',
+    href: '/admin/block-time-purchases',
+    icon: 'account_balance',
+    badgeKey: 'blockTimeBankTransfers',
   },
   {
     title: 'Promotions',
@@ -102,7 +109,7 @@ const pickGroups = (...titles: string[]) =>
 const NAV_SECTIONS: NavSectionType[] = [
   {
     title: 'Operations',
-    groups: pickGroups('Actions', 'Bookings', 'Promotions'),
+    groups: pickGroups('Actions', 'Bookings', 'Block Time Purchases', 'Promotions'),
   },
   {
     title: 'Customers',
@@ -186,6 +193,7 @@ export default function AdminSidebar({
     const postFlightReview = actionCounts.postFlightReview ?? 0
     const bookingPayments = actionCounts.bookingPayments ?? 0
     const bookingCancellations = actionCounts.bookingCancellations ?? 0
+    const blockTimeBankTransfers = actionCounts.blockTimeBankTransfers ?? 0
 
     const checkouts = actionCounts.checkouts ?? (checkoutNewRequests + checkoutAwaitingOutcome + checkoutPayments + checkoutReschedule + checkoutCancelled)
     const bookings = actionCounts.bookings ?? (awaitingFlightRecord + bookingOnHold + postFlightReview + bookingPayments + bookingCancellations)
@@ -203,6 +211,7 @@ export default function AdminSidebar({
       postFlightReview,
       bookingPayments,
       bookingCancellations,
+      blockTimeBankTransfers,
       checkouts,
       bookings,
       messagesUnread,

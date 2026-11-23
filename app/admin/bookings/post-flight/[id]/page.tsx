@@ -290,6 +290,9 @@ export default async function AdminPostFlightReviewDetailPage({ params }: { para
     overageHours: number
     overageAmountCents: number
     hoursPurchased?: number
+    bonusHours?: number
+    promotionName?: string | null
+    freeCheckoutIncluded?: boolean
   } | null = null
 
   let actualHoursRefundRequest: any = null
@@ -429,9 +432,39 @@ export default async function AdminPostFlightReviewDetailPage({ params }: { para
         blockTimeDetails.hoursPurchased = hrsPurchased
       }
     }
+    // Promotion extras (bonus hours, free checkout) live on the purchase row.
+    let bonusHours = 0
+    let promotionName: string | null = null
+    let freeCheckoutIncluded = false
+    if (blockTimeDetails.packageId) {
+      const { data: promoRow } = await adminSupabase
+        .from('pilot_block_time_purchases')
+        .select('bonus_hours, promotion:promotions ( name )')
+        .eq('id', blockTimeDetails.packageId)
+        .maybeSingle()
+      if (promoRow) {
+        bonusHours = Number((promoRow as any).bonus_hours ?? 0)
+        const promo = Array.isArray((promoRow as any).promotion) ? (promoRow as any).promotion[0] : (promoRow as any).promotion
+        promotionName = promo?.name ?? null
+      }
+      const { data: creditRow } = await adminSupabase
+        .from('checkout_credits')
+        .select('id')
+        .eq('purchase_id', blockTimeDetails.packageId)
+        .limit(1)
+        .maybeSingle()
+      freeCheckoutIncluded = Boolean(creditRow)
+    }
+    blockTimeDetails.bonusHours = bonusHours
+    blockTimeDetails.promotionName = promotionName
+    blockTimeDetails.freeCheckoutIncluded = freeCheckoutIncluded
+
     let baseName = blockTimeDetails.packageName || 'Starter Block'
     if (hrsPurchased > 0 && !baseName.toLowerCase().includes('hr')) {
-      baseName = `${baseName} (${hrsPurchased}hr package)`
+      baseName =
+        bonusHours > 0
+          ? `${baseName} (${hrsPurchased}hr package + ${bonusHours}hr bonus = ${hrsPurchased + bonusHours}hrs total)`
+          : `${baseName} (${hrsPurchased}hr package)`
     }
     blockTimeDetails.packageName = baseName
   }

@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { headers } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
+import { ONLINE_PAYMENTS_ENABLED } from '@/lib/payments/online-payments'
 import { validateFlightReviewDate } from '@/lib/utils/flight-review'
 import { generateReviewFlags } from '@/lib/booking/review-flags'
 import { isNoShowLockedProfile } from '@/lib/checkout-policy'
@@ -700,6 +701,9 @@ export async function submitAndPayPostFlight(
   const netPayableDueCents = Math.max(0, grossSettlementCents - upfrontPaidCents)
 
   const isOnlineStripePaymentPending = input.payment_method === 'stripe' && netPayableDueCents > 0
+  if (isOnlineStripePaymentPending && !ONLINE_PAYMENTS_ENABLED) {
+    throw new Error('Online payment is temporarily unavailable. Please pay by bank transfer instead.')
+  }
 
   // Check if active flight record already exists
   const { data: existingRecords } = await supabase

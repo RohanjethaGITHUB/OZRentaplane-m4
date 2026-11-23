@@ -69,6 +69,9 @@ function formatAud(value: number): string {
   return value.toLocaleString('en-AU', { style: 'currency', currency: 'AUD', minimumFractionDigits: 2 })
 }
 
+import { ONLINE_PAYMENTS_ENABLED } from '@/lib/payments/online-payments'
+import { pendingPurchaseDisplay } from '@/lib/payments/block-time-purchase-status'
+
 function packageName(purchase: PurchaseRow): string {
   return one(purchase.package)?.name ?? 'Block Time'
 }
@@ -81,8 +84,11 @@ const PURCHASE_STATUS_PILL: Record<string, { label: string; className: string; d
   refunded: { label: 'Refunded', className: 'text-red-700 bg-red-50 border-red-200', dot: 'bg-red-400' },
 }
 
-function StatusPill({ status }: { status: string }) {
-  const cfg = PURCHASE_STATUS_PILL[status] ?? {
+function StatusPill({ status, receiptStatus }: { status: string; receiptStatus?: string | null }) {
+  const pending = status === 'pending' ? pendingPurchaseDisplay(receiptStatus) : null
+  const cfg = pending
+    ? { label: pending.label, className: pending.pillClass, dot: pending.dotClass }
+    : PURCHASE_STATUS_PILL[status] ?? {
     label: status.replace(/_/g, ' '),
     className: 'text-slate-600 bg-slate-50 border-slate-200',
     dot: 'bg-slate-400',
@@ -180,7 +186,7 @@ export default async function PurchaseHistoryPage({
       .order('deducted_at', { ascending: false }),
     supabase
       .from('invoices')
-      .select('id, invoice_number, total, created_at, pdf_url')
+      .select('id, invoice_number, total, created_at, pdf_url, booking_id')
       .eq('user_id', user.id)
       .eq('is_block_time_overage', true)
       .eq('status', 'awaiting')
@@ -274,6 +280,20 @@ export default async function PurchaseHistoryPage({
     })
 
   const pendingPurchases = purchases.filter((p) => p.status === 'pending')
+  const latestReceiptStatusByPurchase = new Map<string, string>()
+  if (pendingPurchases.length > 0) {
+    const { data: receiptRows } = await createAdminClient()
+      .from('block_time_bank_transfer_submissions')
+      .select('purchase_id, status, submitted_at')
+      .eq('customer_id', user.id)
+      .in('purchase_id', pendingPurchases.map((p) => p.id))
+      .order('submitted_at', { ascending: false })
+    for (const row of receiptRows ?? []) {
+      if (!latestReceiptStatusByPurchase.has(row.purchase_id)) {
+        latestReceiptStatusByPurchase.set(row.purchase_id, row.status)
+      }
+    }
+  }
   const completedPurchases = purchases.filter((p) => p.status !== 'pending')
   const hasActivePackage = activePurchases.length > 0
   const topupEligiblePurchase =
@@ -395,14 +415,28 @@ export default async function PurchaseHistoryPage({
                     )}
                   </p>
                 </div>
-                <form action={createBlockTimeOveragePaymentSession.bind(null, invoice.id)}>
-                  <button
-                    type="submit"
-                    className="inline-flex items-center justify-center rounded-full bg-rose-600 px-5 py-2.5 text-[12px] font-bold uppercase tracking-widest text-white transition-colors hover:bg-rose-500 w-full sm:w-auto"
-                  >
-                    Pay ${Number(invoice.total).toFixed(2)} now
-                  </button>
-                </form>
+                {ONLINE_PAYMENTS_ENABLED ? (
+                  <form action={createBlockTimeOveragePaymentSession.bind(null, invoice.id)}>
+                    <button
+                      type="submit"
+                      className="inline-flex items-center justify-center rounded-full bg-rose-600 px-5 py-2.5 text-[12px] font-bold uppercase tracking-widest text-white transition-colors hover:bg-rose-500 w-full sm:w-auto"
+                    >
+                      Pay ${Number(invoice.total).toFixed(2)} now
+                    </button>
+                  </form>
+                ) : (
+                  <div className="flex flex-col items-stretch gap-1.5 sm:items-end">
+                    <span className="text-center text-[11px] font-semibold text-rose-800/80">
+                      Pay online: temporarily unavailable
+                    </span>
+                    <Link
+                      href={(invoice as any).booking_id ? `/dashboard/bookings/${(invoice as any).booking_id}#payment` : '/dashboard/bookings'}
+                      className="inline-flex items-center justify-center gap-1.5 rounded-full bg-rose-600 px-5 py-2.5 text-[12px] font-bold uppercase tracking-widest text-white transition-colors hover:bg-rose-500"
+                    >
+                      Pay ${Number(invoice.total).toFixed(2)} by bank transfer
+                    </Link>
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -469,14 +503,20 @@ export default async function PurchaseHistoryPage({
                       Pay ${Number(invoice.total).toFixed(2)} now
                     </Link>
                   ) : (
-                    <form action={createBlockTimeOveragePaymentSession.bind(null, invoice.id)}>
-                      <button
-                        type="submit"
-                        className="inline-flex items-center justify-center rounded-full bg-[#1a4fd6] px-5 py-2.5 text-[12px] font-bold uppercase tracking-widest text-white transition-colors hover:bg-[#1540a8] w-full sm:w-auto"
-                      >
-                        Pay ${Number(invoice.total).toFixed(2)} now
-                      </button>
-                    </form>
+                    ONLINE_PAYMENTS_ENABLED ? (
+                      <form action={createBlockTimeOveragePaymentSession.bind(null, invoice.id)}>
+                        <button
+                          type="submit"
+                          className="inline-flex items-center justify-center rounded-full bg-[#1a4fd6] px-5 py-2.5 text-[12px] font-bold uppercase tracking-widest text-white transition-colors hover:bg-[#1540a8] w-full sm:w-auto"
+                        >
+                          Pay ${Number(invoice.total).toFixed(2)} now
+                        </button>
+                      </form>
+                    ) : (
+                      <span className="text-center text-[11px] font-semibold text-amber-800/80">
+                        Pay online: temporarily unavailable
+                      </span>
+                    )
                   )
                 )}
               </div>
@@ -661,31 +701,52 @@ export default async function PurchaseHistoryPage({
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
                     <h3 className="text-[15px] font-semibold text-[#152d5a]">{packageName(purchase)}</h3>
-                    <StatusPill status="pending" />
+                    <StatusPill status="pending" receiptStatus={latestReceiptStatusByPurchase.get(purchase.id)} />
                   </div>
                   <p className="mt-1 text-[12px] text-[#4b6390]">
                     {Number(purchase.hours_purchased).toFixed(0)} hours · {formatAud(Number(purchase.amount_paid))} · started{' '}
                     {formatDateFromISO(purchase.purchased_at)}
                   </p>
                 </div>
-                <div className="flex flex-col items-start gap-2 sm:items-end">
-                  <p className="max-w-[420px] text-[12px] leading-relaxed text-amber-800">
-                    Payment for this purchase was not completed.
-                  </p>
-                  <form
-                    action={async () => {
-                      'use server'
-                      await cancelPendingBlockTimePurchase(purchase.id)
-                    }}
-                  >
-                    <button
-                      type="submit"
-                      className="inline-flex items-center justify-center rounded-full border border-amber-300 bg-white px-3 py-1 text-[11px] font-semibold text-amber-800 transition-colors hover:bg-amber-100"
-                    >
-                      Discard reservation
-                    </button>
-                  </form>
-                </div>
+                {(() => {
+                  const receiptStatus = latestReceiptStatusByPurchase.get(purchase.id)
+                  const underReview = receiptStatus === 'pending_review'
+                  const message = underReview
+                    ? 'Bank transfer receipt received — awaiting admin review.'
+                    : receiptStatus === 'resubmission_requested'
+                      ? 'We need a clearer receipt for this transfer. Please upload a new one.'
+                      : receiptStatus === 'rejected'
+                        ? 'Your transfer could not be verified. See the note and upload a new receipt.'
+                        : 'Waiting for your bank transfer receipt.'
+                  return (
+                    <div className="flex flex-col items-start gap-2 sm:items-end">
+                      <p className="max-w-[420px] text-[12px] leading-relaxed text-amber-800">{message}</p>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Link
+                          href={`/dashboard/purchases/${purchase.id}/bank-transfer`}
+                          className="inline-flex items-center justify-center rounded-full bg-[#152d5a] px-3.5 py-1 text-[11px] font-semibold text-white transition-colors hover:bg-[#1a3a6e]"
+                        >
+                          {underReview ? 'View status' : 'Complete payment'}
+                        </Link>
+                        {underReview ? null : (
+                          <form
+                            action={async () => {
+                              'use server'
+                              await cancelPendingBlockTimePurchase(purchase.id)
+                            }}
+                          >
+                            <button
+                              type="submit"
+                              className="inline-flex items-center justify-center rounded-full border border-amber-300 bg-white px-3 py-1 text-[11px] font-semibold text-amber-800 transition-colors hover:bg-amber-100"
+                            >
+                              Discard reservation
+                            </button>
+                          </form>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })()}
               </div>
             ))}
           </div>

@@ -55,6 +55,10 @@ export type BlockTimeBookingDetails = {
   overageHours: number
   overageAmountCents: number
   hoursPurchased?: number
+  /** Promotion extras on the purchase (e.g. Black Friday). */
+  bonusHours?: number
+  promotionName?: string | null
+  freeCheckoutIncluded?: boolean
 }
 
 type Props = {
@@ -1790,6 +1794,25 @@ export default function PostFlightVerificationConsole({
                     <span className="text-[11px] text-slate-600 block">
                       {blockHoursDeducted.toFixed(1)}h deducted &middot; Balance: {blockHoursRemainingAfter.toFixed(1)}h remaining
                     </span>
+                    {(blockTimeDetails?.bonusHours ?? 0) > 0 || blockTimeDetails?.freeCheckoutIncluded || blockTimeDetails?.promotionName ? (
+                      <span className="flex flex-wrap items-center gap-1.5 pt-1">
+                        {blockTimeDetails?.promotionName ? (
+                          <span className="rounded-full bg-[#0a1424] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[#ffcf5c]">
+                            {blockTimeDetails.promotionName}
+                          </span>
+                        ) : null}
+                        {(blockTimeDetails?.bonusHours ?? 0) > 0 ? (
+                          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800">
+                            +{blockTimeDetails!.bonusHours}h bonus &middot; {(blockTimeDetails?.hoursPurchased ?? 0) + (blockTimeDetails!.bonusHours ?? 0)}h total credited
+                          </span>
+                        ) : null}
+                        {blockTimeDetails?.freeCheckoutIncluded ? (
+                          <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800">
+                            Free checkout flight included
+                          </span>
+                        ) : null}
+                      </span>
+                    ) : null}
                   </div>
                   <span className="font-bold text-slate-900 tabular-nums text-xs">
                     $0.00 AUD

@@ -66,6 +66,10 @@ type BlockTimeSummary = {
     validityDays: number
     purchasedAt: string
     status: BlockTimePurchaseRow['status']
+    receiptStatus?: string | null
+    bonusHours?: number
+    isPromotion?: boolean
+    freeCheckoutIncluded?: boolean
     canTopup: boolean
   } | null
 }
@@ -805,6 +809,31 @@ export default async function DashboardPage({
   }
 
   const latestPurchase = blockTimePurchases[0] ?? null
+  let latestReceiptStatus: string | null = null
+  if (latestPurchase?.status === 'pending') {
+    // The purchase id comes from this user's own purchases; read with the
+    // service client so the status never depends on row-level policies.
+    const { data: latestReceipt } = await createAdminClient()
+      .from('block_time_bank_transfer_submissions')
+      .select('status')
+      .eq('customer_id', user.id)
+      .eq('purchase_id', latestPurchase.id)
+      .order('submitted_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    latestReceiptStatus = latestReceipt?.status ?? null
+  }
+  let latestHasFreeCheckout = false
+  if (latestPurchase?.promotion_id) {
+    const { data: creditRow } = await createAdminClient()
+      .from('checkout_credits')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('purchase_id', latestPurchase.id)
+      .limit(1)
+      .maybeSingle()
+    latestHasFreeCheckout = Boolean(creditRow)
+  }
   const latestPurchasePackageName = latestPurchase?.package?.name ?? 'Block Time'
   const latestPurchaseHours = latestPurchase?.package?.hours ?? Number(latestPurchase?.hours_purchased ?? 0)
   const isTopupEligible = Boolean(
@@ -831,6 +860,10 @@ export default async function DashboardPage({
           validityDays: Number(latestPurchase.package?.validity_days ?? 30),
           purchasedAt: latestPurchase.purchased_at,
           status: latestPurchase.status,
+          receiptStatus: latestReceiptStatus,
+          bonusHours: Number(latestPurchase.bonus_hours ?? 0),
+          isPromotion: Boolean(latestPurchase.promotion_id),
+          freeCheckoutIncluded: latestHasFreeCheckout,
           canTopup: isTopupEligible,
         }
         : null,

@@ -2,6 +2,7 @@
 
 import { useState, useRef, useMemo, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { ONLINE_PAYMENTS_ENABLED } from '@/lib/payments/online-payments'
 import {
   submitAndPayPostFlight,
   uploadFlightRecordEvidence,
@@ -145,7 +146,7 @@ export default function FlightRecordForm({
   const isResubmission = Boolean(clarification || (initialRecord && !isDraft))
 
   // Payment method state: stripe | bank_transfer | previous_payment
-  const [paymentMethod, setPaymentMethod] = useState<'stripe' | 'bank_transfer' | 'previous_payment'>('stripe')
+  const [paymentMethod, setPaymentMethod] = useState<'stripe' | 'bank_transfer' | 'previous_payment'>(ONLINE_PAYMENTS_ENABLED ? 'stripe' : 'bank_transfer')
   const [bankReceiptFile, setBankReceiptFile] = useState<File | null>(null)
   const [bankReceiptPreview, setBankReceiptPreview] = useState<string | null>(null)
   const [bankReceiptError, setBankReceiptError] = useState<string | null>(null)
@@ -322,7 +323,7 @@ export default function FlightRecordForm({
     if (netPayableDueCents === 0 && isResubmission) {
       setPaymentMethod('previous_payment')
     } else if (netPayableDueCents > 0 && paymentMethod === 'previous_payment') {
-      setPaymentMethod('stripe')
+      setPaymentMethod(ONLINE_PAYMENTS_ENABLED ? 'stripe' : 'bank_transfer')
     }
   }, [netPayableDueCents, isResubmission, paymentMethod])
 
@@ -1215,9 +1216,12 @@ export default function FlightRecordForm({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3">
                 <button
                   type="button"
-                  onClick={() => setPaymentMethod('stripe')}
+                  disabled={!ONLINE_PAYMENTS_ENABLED}
+                  onClick={() => ONLINE_PAYMENTS_ENABLED && setPaymentMethod('stripe')}
                   className={`p-3 sm:p-4 rounded-xl sm:rounded-2xl border-2 flex items-center gap-3 transition-all ${
-                    paymentMethod === 'stripe'
+                    !ONLINE_PAYMENTS_ENABLED
+                      ? 'border-[#dbe7f4] bg-[#f1f5f9] text-[#94a3b8] cursor-not-allowed opacity-80'
+                      : paymentMethod === 'stripe'
                       ? 'border-[#1a4fd6] bg-blue-50/70 text-[#152d5a] shadow-sm ring-2 ring-[#1a4fd6]/20'
                       : 'border-[#dbe7f4] bg-[#f8fbff] text-[#4b6390] hover:border-[#1a4fd6]/40'
                   }`}
@@ -1229,7 +1233,9 @@ export default function FlightRecordForm({
                   </div>
                   <div className="text-left min-w-0">
                     <p className="text-xs font-bold uppercase tracking-wider text-[#152d5a]">Pay Online (Card)</p>
-                    <p className="text-[10px] sm:text-[11px] text-[#4b6390] truncate">Immediate Visa / Mastercard / Apple Pay</p>
+                    <p className="text-[10px] sm:text-[11px] text-[#4b6390]">
+                      {ONLINE_PAYMENTS_ENABLED ? 'Immediate Visa / Mastercard / Apple Pay' : 'Temporarily unavailable'}
+                    </p>
                   </div>
                 </button>
 

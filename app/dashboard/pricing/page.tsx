@@ -470,7 +470,7 @@ export default async function BlockTimePage({
               <div className="rounded-xl border border-[#152d5a]/5 bg-white p-3.5">
                 <span className="font-semibold text-[#152d5a]">Inclusive Wet Hire</span>
                 <p className="mt-1 leading-relaxed">
-                  All packages include fuel (Wet Hire) and GST. Landing fees ($28.95 per landing) are charged separately per flight. Payment completed securely via Stripe.
+                  All packages include fuel (Wet Hire) and GST. Landing fees ($28.95 per landing) are charged separately per flight. Pay by bank transfer and upload your receipt — your package activates once our team verifies the payment.
                 </p>
               </div>
             </div>

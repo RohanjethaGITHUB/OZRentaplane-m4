@@ -93,6 +93,7 @@ export async function fetchAdminShellBadges(
     { count: cancellationPending },
     { count: checkoutIssues },
     { count: overageInvoiceCount },
+    { count: blockTimeBankTransferCount },
   ] = await Promise.all([
     countAdminUnread(supabase),
     getCachedAdminDocumentReviewRows(),
@@ -113,6 +114,7 @@ export async function fetchAdminShellBadges(
     supabase.from('booking_cancellation_requests').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
     supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('role', 'customer').in('pilot_clearance_status', ['additional_checkout_required', 'checkout_reschedule_required', 'not_currently_eligible']),
     supabase.from('invoices').select('id', { count: 'exact', head: true }).eq('is_block_time_overage', true).eq('status', 'awaiting'),
+    supabase.from('block_time_bank_transfer_submissions').select('id', { count: 'exact', head: true }).eq('status', 'pending_review'),
   ])
 
   const checkoutNewQueue = checkoutNewRequests ?? 0
@@ -199,7 +201,8 @@ export async function fetchAdminShellBadges(
     documentReviewUsers.add(key.split(':')[0])
   }
   const documentReviewQueue = documentReviewUsers.size
-  const totalActions = checkoutActions + bookingActions + documentReviewQueue
+  const blockTimeBankTransferQueue = blockTimeBankTransferCount ?? 0
+  const totalActions = checkoutActions + bookingActions + documentReviewQueue + blockTimeBankTransferQueue
 
   return {
     unreadMessageCount,
@@ -217,6 +220,7 @@ export async function fetchAdminShellBadges(
       postFlightReview: bookingPostFlightQueue,
       bookingPayments: bookingPaymentsQueue,
       bookingCancellations: bookingCancellationsQueue,
+      blockTimeBankTransfers: blockTimeBankTransferQueue,
     },
   }
 }

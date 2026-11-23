@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { createCheckoutPaymentSession, submitBankTransferProof } from "@/app/actions/payment"
 import { getCheckoutPaymentDisplayState } from "@/lib/checkout-payment-state"
+import { ONLINE_PAYMENTS_ENABLED } from "@/lib/payments/online-payments"
 
 const STRIPE_DOMESTIC_FEE_BPS = 170
 const STRIPE_FIXED_FEE_CENTS = 30
@@ -57,7 +58,7 @@ export default function CheckoutPaymentCard({
   bankTransferSubmission,
   bankDetails,
 }: Props) {
-  const [method, setMethod] = useState<"stripe" | "bank_transfer">("stripe")
+  const [method, setMethod] = useState<"stripe" | "bank_transfer">(ONLINE_PAYMENTS_ENABLED ? "stripe" : "bank_transfer")
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -330,15 +331,23 @@ export default function CheckoutPaymentCard({
       <div className="grid grid-cols-2 gap-2.5 sm:gap-3 mb-5">
         <button
           type="button"
-          onClick={() => setMethod("stripe")}
-          className={`p-2.5 sm:p-3 rounded-xl border flex flex-col items-center gap-1.5 sm:gap-2 transition-colors ${
-            method === "stripe" 
-              ? "bg-[#1a4fd6] border-[#1a4fd6] text-white" 
+          disabled={!ONLINE_PAYMENTS_ENABLED}
+          onClick={() => ONLINE_PAYMENTS_ENABLED && setMethod("stripe")}
+          className={`p-2.5 sm:p-3 rounded-xl border flex flex-col items-center gap-1 sm:gap-1.5 transition-colors ${
+            !ONLINE_PAYMENTS_ENABLED
+              ? "bg-[#f1f5f9] border-[#152d5a]/10 text-[#94a3b8] cursor-not-allowed"
+              : method === "stripe"
+              ? "bg-[#1a4fd6] border-[#1a4fd6] text-white"
               : "bg-[#f0f6ff] border-[#152d5a]/10 hover:bg-[#e8f0fe] text-[#152d5a]"
           }`}
         >
-          <span className="material-symbols-outlined text-[20px] sm:text-[24px]">credit_card</span>
+          <span className="material-symbols-outlined text-[20px] sm:text-[24px]">
+            {ONLINE_PAYMENTS_ENABLED ? "credit_card" : "credit_card_off"}
+          </span>
           <span className="text-[11px] sm:text-xs font-bold uppercase tracking-wider sm:tracking-widest">Pay Online</span>
+          {!ONLINE_PAYMENTS_ENABLED && (
+            <span className="text-[10px] font-semibold normal-case tracking-normal">Temporarily unavailable</span>
+          )}
         </button>
         <button
           type="button"

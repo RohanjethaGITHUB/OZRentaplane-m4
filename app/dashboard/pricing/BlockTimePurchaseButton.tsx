@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { createBlockTimePurchaseIntent } from '@/app/actions/payment'
+import { createBlockTimeBankTransferPurchase } from '@/app/actions/block-time-bank-transfer'
 import { LoadingButtonContent } from '@/components/ui/Spinner'
 
 type Props = {
@@ -12,44 +12,22 @@ type Props = {
   pendingHref?: string
 }
 
-function isPendingPurchaseError(message: string): boolean {
-  return /pending block time purchase/i.test(message)
-}
-
-export default function BlockTimePurchaseButton({
-  packageId,
-  packageHours,
-  featured = false,
-  pendingSectionId,
-  pendingHref,
-}: Props) {
+export default function BlockTimePurchaseButton({ packageId, packageHours, featured = false }: Props) {
   const [error, setError] = useState('')
   const [isPending, startTransition] = useTransition()
 
-  const buttonClassName = featured
+  const bankButtonClassName = featured
     ? 'bg-[#f59e0b] text-white hover:bg-[#e08c00]'
     : 'bg-[#152d5a] text-white hover:bg-[#1a3a6e]'
 
-  const handleClick = () => {
+  const handleBankTransfer = () => {
     setError('')
     startTransition(async () => {
       try {
-        await createBlockTimePurchaseIntent(packageId)
+        // Redirects to the bank transfer page on success.
+        await createBlockTimeBankTransferPurchase(packageId)
       } catch (err) {
-        const message = err instanceof Error ? err.message : 'Failed to start purchase.'
-        setError(message)
-
-        if (isPendingPurchaseError(message)) {
-          if (pendingHref) {
-            window.location.assign(pendingHref)
-            return
-          }
-
-          if (pendingSectionId) {
-            const target = document.getElementById(pendingSectionId)
-            target?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-          }
-        }
+        setError(err instanceof Error ? err.message : 'Failed to start purchase.')
       }
     })
   }
@@ -58,15 +36,26 @@ export default function BlockTimePurchaseButton({
     <div className="space-y-2">
       <button
         type="button"
-        onClick={handleClick}
+        onClick={handleBankTransfer}
         disabled={isPending}
         aria-busy={isPending || undefined}
-        className={`w-full rounded-xl px-4 py-3 text-center text-[12px] font-bold uppercase tracking-[0.12em] transition-colors disabled:cursor-not-allowed disabled:opacity-70 flex items-center justify-center gap-2 ${buttonClassName}`}
+        className={`w-full rounded-xl px-4 py-3 text-center text-[12px] font-bold uppercase tracking-[0.12em] transition-colors disabled:cursor-not-allowed disabled:opacity-70 flex items-center justify-center gap-2 ${bankButtonClassName}`}
       >
         <LoadingButtonContent loading={isPending} loadingLabel="Starting…">
-          {`Buy ${packageHours} Hours`}
+          <span className="material-symbols-outlined text-[16px]">account_balance</span>
+          {`Buy ${packageHours} Hours · Bank Transfer`}
         </LoadingButtonContent>
       </button>
+
+      <div className="rounded-xl border border-[#152d5a]/10 bg-[#f8fafc] px-3 py-2.5 text-center">
+        <p className="flex items-center justify-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.1em] text-[#4b6390]/70">
+          <span className="material-symbols-outlined text-[14px]">credit_card_off</span>
+          Pay online
+        </p>
+        <p className="mt-0.5 text-[11px] leading-snug text-[#4b6390]/80">
+          Temporarily unavailable — please pay by bank transfer.
+        </p>
+      </div>
 
       {error ? (
         <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] leading-relaxed text-amber-900">

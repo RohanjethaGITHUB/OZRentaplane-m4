@@ -1,8 +1,13 @@
+import { ONLINE_PAYMENTS_ENABLED } from './online-payments'
+
 export const PAYMENT_CONFIG = {
   // Stripe Domestic Card Fee (Australia)
   STRIPE_DOMESTIC_FEE_BPS: 170, // 1.7%
   STRIPE_FIXED_FEE_CENTS: 30,   // $0.30 AUD
   ENABLE_SURCHARGE: process.env.ENABLE_STRIPE_SURCHARGE !== 'false',
+
+  // Online (Stripe) card payments are temporarily off site-wide — see online-payments.ts.
+  ONLINE_PAYMENTS_ENABLED,
 
   // Bank Transfer Details
   BANK_NAME:           process.env.BANK_NAME?.trim()           || 'National Australia Bank (NAB)',

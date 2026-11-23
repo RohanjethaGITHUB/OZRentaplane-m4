@@ -8,6 +8,7 @@ import {
 } from '@/lib/payments/block-time-topup'
 import { formatDateFromISO } from '@/lib/formatDateTime'
 import { LoadingButtonContent } from '@/components/ui/Spinner'
+import { ONLINE_PAYMENTS_ENABLED } from '@/lib/payments/online-payments'
 
 type Props = {
   purchaseId: string
@@ -52,7 +53,7 @@ export default function BlockTimeTopupCard({
   }, [hoursInput])
 
   const belowMinimum = hours !== null && hours + 1e-9 < minHours
-  const canSubmit = hours !== null && !belowMinimum && !isPending
+  const canSubmit = ONLINE_PAYMENTS_ENABLED && hours !== null && !belowMinimum && !isPending
 
   const cost = hours !== null ? Math.round(hours * ratePerHour * 100) / 100 : null
   const newBalance = hours !== null ? Math.round((hoursRemaining + hours) * 100) / 100 : null
@@ -189,9 +190,16 @@ export default function BlockTimeTopupCard({
               : 'Top up'}
           </LoadingButtonContent>
         </button>
-        <p className="text-[11px] text-[#4b6390]/80">
-          You will be sent to Stripe checkout to complete payment securely. Prices include GST.
-        </p>
+        {ONLINE_PAYMENTS_ENABLED ? (
+          <p className="text-[11px] text-[#4b6390]/80">
+            You will be sent to Stripe checkout to complete payment securely. Prices include GST.
+          </p>
+        ) : (
+          <p className="flex items-center gap-1.5 text-[12px] font-semibold text-[#4b6390]">
+            <span className="material-symbols-outlined text-[16px]">credit_card_off</span>
+            Pay online: temporarily unavailable. Please contact OZ Rent A Plane to top up by bank transfer.
+          </p>
+        )}
       </div>
 
       {error ? (

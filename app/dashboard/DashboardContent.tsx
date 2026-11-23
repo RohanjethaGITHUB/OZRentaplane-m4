@@ -20,6 +20,7 @@ import { formatSydTime } from '@/lib/utils/sydney-time'
 import DashboardNextActionPanel from '@/components/customer/dashboard/DashboardNextActionPanel'
 import SuccessModal from '@/components/ui/SuccessModal'
 import BlockTimeTopupCard from './pricing/BlockTimeTopupCard'
+import { pendingPurchaseDisplay } from '@/lib/payments/block-time-purchase-status'
 import { createBlockTimePurchaseIntent } from '@/app/actions/payment'
 
 // ── Exported types ────────────────────────────────────────────────────────────
@@ -62,6 +63,10 @@ export type BlockTimeSummary = {
     validityDays?: number
     purchasedAt: string
     status: 'pending' | 'active' | 'exhausted' | 'expired' | 'refunded'
+    receiptStatus?: string | null
+    bonusHours?: number
+    isPromotion?: boolean
+    freeCheckoutIncluded?: boolean
     canTopup?: boolean
   } | null
 }
@@ -796,28 +801,62 @@ export default function DashboardContent({
                     ? `${(blockTimeSummary.latestPurchase.hoursRemaining ?? 0).toFixed(1)}h remaining of ${blockTimeSummary.latestPurchase.hoursPurchased}h · Expired ${formatDateFromISO(blockTimeSummary.latestPurchase.expiresAt)}`
                     : `${blockTimeSummary.latestPurchase.hoursPurchased} hours bought on ${formatDateFromISO(blockTimeSummary.latestPurchase.purchasedAt)}.`}
                 </p>
+                {(() => {
+                  const lp = blockTimeSummary.latestPurchase!
+                  const bonus = lp.bonusHours ?? 0
+                  if (!lp.isPromotion && bonus <= 0 && !lp.freeCheckoutIncluded) return null
+                  return (
+                    <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                      {lp.isPromotion ? (
+                        <span className="rounded-full bg-[#0a1424] px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[#ffcf5c]">
+                          Black Friday package
+                        </span>
+                      ) : null}
+                      {bonus > 0 ? (
+                        <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-[11px] font-semibold text-amber-800">
+                          +{bonus} bonus {bonus === 1 ? 'hour' : 'hours'} · {lp.hoursPurchased + bonus} hours total
+                        </span>
+                      ) : null}
+                      {lp.freeCheckoutIncluded ? (
+                        <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-800">
+                          Free checkout flight included
+                        </span>
+                      ) : null}
+                    </div>
+                  )
+                })()}
               </div>
 
               {/* Status Box */}
-              <div className="border border-[#e2e8f0] rounded-xl p-3 bg-white text-center min-w-[120px] shadow-sm flex flex-col items-center justify-center font-sans">
-                <p className="text-[9px] font-semibold tracking-[0.14em] uppercase text-[#64748b]">
-                  STATUS
-                </p>
-                <div className="flex items-center gap-1.5 mt-1.5">
-                  <span
-                    className={`w-2 h-2 rounded-full ${
-                      blockTimeSummary.latestPurchase.status === 'active'
-                        ? 'bg-emerald-500'
-                        : blockTimeSummary.latestPurchase.status === 'pending'
-                        ? 'bg-amber-400'
-                        : 'bg-slate-400'
-                    }`}
-                  />
-                  <span className="text-[13px] font-bold text-[#152d5a] capitalize">
-                    {blockTimeSummary.latestPurchase.status}
-                  </span>
-                </div>
-              </div>
+              {(() => {
+                const lp = blockTimeSummary.latestPurchase!
+                const pending = lp.status === 'pending' ? pendingPurchaseDisplay(lp.receiptStatus) : null
+                return (
+                  <div className="border border-[#e2e8f0] rounded-xl p-3 bg-white text-center min-w-[120px] max-w-full sm:max-w-[220px] shadow-sm flex flex-col items-center justify-center font-sans">
+                    <p className="text-[9px] font-semibold tracking-[0.14em] uppercase text-[#64748b]">
+                      STATUS
+                    </p>
+                    <div className="flex items-center gap-1.5 mt-1.5">
+                      <span
+                        className={`w-2 h-2 shrink-0 rounded-full ${
+                          lp.status === 'active' ? 'bg-emerald-500' : pending ? pending.dotClass : 'bg-slate-400'
+                        }`}
+                      />
+                      <span className="text-[13px] font-bold text-[#152d5a] capitalize leading-tight">
+                        {pending ? pending.label : lp.status}
+                      </span>
+                    </div>
+                    {pending ? (
+                      <Link
+                        href={`/dashboard/purchases/${lp.id}/bank-transfer`}
+                        className="mt-2 text-[11px] font-semibold text-[#1a4fd6] hover:underline"
+                      >
+                        View payment status
+                      </Link>
+                    ) : null}
+                  </div>
+                )
+              })()}
             </div>
           )}
         </section>
@@ -1394,8 +1433,8 @@ export default function DashboardContent({
         )}
       </div>
 
-      <div className="bg-white border border-[#152d5a]/10 rounded-2xl px-6 py-5">
-        <div className="flex items-center justify-between mb-4">
+      <div className="bg-white border border-[#152d5a]/10 rounded-2xl px-4 sm:px-6 py-5 min-w-0 overflow-hidden">
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 mb-4">
           <div className="flex items-center gap-2">
             <span className="material-symbols-outlined text-[18px] text-[#1a4fd6]">show_chart</span>
             <span className="text-[15px] font-semibold text-[#152d5a]">Recent Activity</span>
@@ -1420,15 +1459,15 @@ export default function DashboardContent({
               : item.color === 'blue'
 
             return (
-              <div key={i} className="flex items-center flex-1">
-                <div className="flex items-center gap-3 bg-[#f0f6ff] border border-[#152d5a]/08 rounded-xl px-4 py-3 flex-1">
+              <div key={i} className="flex items-center w-full min-w-0 md:flex-1">
+                <div className="flex items-center gap-3 bg-[#f0f6ff] border border-[#152d5a]/08 rounded-xl px-3.5 sm:px-4 py-3 flex-1 min-w-0">
                   <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${isPositive ? 'bg-green-100' : 'bg-amber-50'}`}>
                     <span className={`material-symbols-outlined text-[15px] ${isPositive ? 'text-green-600' : 'text-[#f59e0b]'}`}>
                       {isEvent ? (isPositive ? 'check_circle' : 'schedule') : (item.icon ?? 'info')}
                     </span>
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="text-[12px] font-semibold text-[#152d5a] truncate">{label}</div>
+                    <div className="text-[12px] font-semibold text-[#152d5a] break-words line-clamp-2 md:line-clamp-1" title={String(label)}>{label}</div>
                     <div className="text-[11px] text-[#4b6390]">{time}</div>
                   </div>
                 </div>

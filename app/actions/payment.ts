@@ -36,6 +36,9 @@ type RecordManualPaymentInput = {
 };
 
 export async function createCheckoutPaymentSession(bookingId: string) {
+  if (!PAYMENT_CONFIG.ONLINE_PAYMENTS_ENABLED) {
+    throw new Error("Online payment is temporarily unavailable. Please pay by bank transfer instead.");
+  }
   const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
     apiVersion: "2023-10-16" as any,
   });
@@ -160,6 +163,10 @@ export async function createCheckoutPaymentSession(bookingId: string) {
 }
 
 export async function createBlockTimePurchaseIntent(packageId: string) {
+  if (!PAYMENT_CONFIG.ONLINE_PAYMENTS_ENABLED) {
+    throw new Error("Online payment is temporarily unavailable. Please pay by bank transfer instead.");
+  }
+
   const stripeSecret = process.env.STRIPE_SECRET_KEY;
   if (!stripeSecret) {
     throw new Error("Server misconfiguration");
@@ -264,12 +271,25 @@ export async function createBlockTimePurchaseIntent(packageId: string) {
 
   const amountCents = Math.round(Number(pkg.total_price) * 100);
   const placeholderExpiry = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
-  // Clean up any uncompleted pending block time purchase reservations for this user
-  await supabase
+  // Clean up any uncompleted pending block time purchase reservations for this
+  // user — but never one that already has a bank transfer receipt on file.
+  const { data: pendingToClean } = await supabase
     .from("pilot_block_time_purchases")
-    .delete()
+    .select("id")
     .eq("user_id", user.id)
     .eq("status", "pending");
+  const pendingIds = (pendingToClean ?? []).map((p) => p.id);
+  if (pendingIds.length > 0) {
+    const { data: receipts } = await supabase
+      .from("block_time_bank_transfer_submissions")
+      .select("purchase_id")
+      .in("purchase_id", pendingIds);
+    const keep = new Set((receipts ?? []).map((r) => r.purchase_id));
+    const deletable = pendingIds.filter((id) => !keep.has(id));
+    if (deletable.length > 0) {
+      await supabase.from("pilot_block_time_purchases").delete().in("id", deletable);
+    }
+  }
 
   const { data: purchase, error: purchaseErr } = await supabase
     .from("pilot_block_time_purchases")
@@ -369,6 +389,10 @@ export async function createBlockTimePurchaseIntent(packageId: string) {
 }
 
 export async function createBlockTimeTopupIntent(purchaseId: string, hoursRequested: number) {
+  if (!PAYMENT_CONFIG.ONLINE_PAYMENTS_ENABLED) {
+    throw new Error("Online payment is temporarily unavailable. Please contact OZ Rent A Plane to top up your package.");
+  }
+
   const stripeSecret = process.env.STRIPE_SECRET_KEY;
   if (!stripeSecret) {
     throw new Error("Server misconfiguration");
@@ -551,6 +575,9 @@ export async function createBlockTimeOveragePaymentSession(
   bookingIdReturn?: string | null | FormData,
   _formData?: FormData,
 ) {
+  if (!PAYMENT_CONFIG.ONLINE_PAYMENTS_ENABLED) {
+    throw new Error("Online payment is temporarily unavailable. Please pay by bank transfer instead.");
+  }
   const stripeSecret = process.env.STRIPE_SECRET_KEY;
   if (!stripeSecret) {
     throw new Error("Server misconfiguration");
@@ -1033,6 +1060,9 @@ export async function adminApproveBankTransfer(submissionId: string, bookingId: 
 // ─── Standard booking Stripe payment ──────────────────────────────────────────
 
 export async function createBookingPaymentSession(bookingId: string) {
+  if (!PAYMENT_CONFIG.ONLINE_PAYMENTS_ENABLED) {
+    throw new Error("Online payment is temporarily unavailable. Please pay by bank transfer instead.");
+  }
   const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
     apiVersion: "2023-10-16" as any,
   });
@@ -1998,6 +2028,18 @@ export async function cancelPendingBlockTimePurchase(purchaseId: string) {
   } = await supabase.auth.getUser();
 
   if (authErr || !user) throw new Error("Unauthorized");
+
+  // A purchase whose bank transfer receipt is awaiting review cannot be discarded.
+  const { data: underReview } = await supabase
+    .from("block_time_bank_transfer_submissions")
+    .select("id")
+    .eq("purchase_id", purchaseId)
+    .eq("status", "pending_review")
+    .limit(1)
+    .maybeSingle();
+  if (underReview) {
+    throw new Error("This purchase has a receipt awaiting review and cannot be discarded.");
+  }
 
   await supabase
     .from("pilot_block_time_purchases")
