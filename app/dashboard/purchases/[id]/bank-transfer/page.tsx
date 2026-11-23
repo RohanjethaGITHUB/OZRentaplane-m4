@@ -50,7 +50,7 @@ export default async function BlockTimeBankTransferPage({ params }: { params: Pr
 
   const { data: submissionRows } = await supabase
     .from('block_time_bank_transfer_submissions')
-    .select('id, status, admin_note, submitted_at, reviewed_at, promo_bonus_hours, promo_free_checkout')
+    .select('id, status, reference, admin_note, submitted_at, reviewed_at, promo_bonus_hours, promo_free_checkout')
     .eq('purchase_id', id)
     .order('submitted_at', { ascending: false })
 
@@ -58,11 +58,14 @@ export default async function BlockTimeBankTransferPage({ params }: { params: Pr
   const latest = submissions[0] ?? null
   const pkg = one(purchase.package as any) as { name: string; validity_days: number } | null
   const packageName = pkg?.name ?? 'Block Time'
-  const reference = blockTimeTransferReference(purchase.id)
   const amount = Number(purchase.amount_paid)
 
-  // Promo terms: locked on the first receipt; before that, show what is live now.
   const firstReceipt = submissions[submissions.length - 1] ?? null
+  const { data: nameRow } = await supabase.from('profiles').select('full_name').eq('id', user.id).single()
+  // Same reference the receipt was saved with; otherwise built from the name.
+  const reference = firstReceipt?.reference || blockTimeTransferReference(nameRow?.full_name, purchase.id, purchase.purchased_at)
+
+  // Promo terms: locked on the first receipt; before that, show what is live now.
   const livePromo = firstReceipt ? null : getPackagePromo(await getLivePromotion(supabase), purchase.package_id)
   const bonusHours = firstReceipt ? Number(firstReceipt.promo_bonus_hours ?? 0) : livePromo?.bonusHours ?? 0
   const freeCheckout = firstReceipt ? firstReceipt.promo_free_checkout === true : livePromo?.freeCheckout ?? false

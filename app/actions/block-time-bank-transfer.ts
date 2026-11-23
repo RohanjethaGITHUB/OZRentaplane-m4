@@ -178,7 +178,7 @@ export async function submitBlockTimeBankTransferProof(purchaseId: string, formD
   const { data: purchase } = await supabase
     .from('pilot_block_time_purchases')
     .select(`
-      id, user_id, package_id, status, hours_purchased, amount_paid,
+      id, user_id, package_id, status, hours_purchased, amount_paid, purchased_at,
       package:block_time_packages ( name )
     `)
     .eq('id', purchaseId)
@@ -229,7 +229,8 @@ export async function submitBlockTimeBankTransferProof(purchaseId: string, formD
     throw new Error('Failed to upload receipt. Please try again.')
   }
 
-  const reference = blockTimeTransferReference(purchaseId)
+  const { data: nameRow } = await admin.from('profiles').select('full_name').eq('id', user.id).single()
+  const reference = blockTimeTransferReference(nameRow?.full_name, purchaseId, purchase.purchased_at)
   const { error: insertError } = await admin.from('block_time_bank_transfer_submissions').insert({
     purchase_id: purchaseId,
     customer_id: user.id,
@@ -355,17 +356,17 @@ async function reviewWithoutApproval(
     const [{ data: purchase }, { data: profile }] = await Promise.all([
       admin
         .from('pilot_block_time_purchases')
-        .select('hours_purchased, amount_paid, package:block_time_packages ( name )')
+        .select('hours_purchased, amount_paid, purchased_at, package:block_time_packages ( name )')
         .eq('id', sub.purchase_id)
         .single(),
-      admin.from('profiles').select('email').eq('id', sub.customer_id).single(),
+      admin.from('profiles').select('email, full_name').eq('id', sub.customer_id).single(),
     ])
 
     const details = {
       packageName: one(purchase?.package as any)?.name ?? 'Block Time',
       packageHours: Number(purchase?.hours_purchased ?? 0),
       amount: aud(Number(purchase?.amount_paid ?? 0)),
-      transferReference: sub.reference ?? blockTimeTransferReference(sub.purchase_id),
+      transferReference: sub.reference ?? blockTimeTransferReference(profile?.full_name, sub.purchase_id, purchase?.purchased_at),
       purchaseId: sub.purchase_id as string,
       note: cleanNote,
     }

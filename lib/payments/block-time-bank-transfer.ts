@@ -8,9 +8,41 @@ import { emitBlockTimeUpdated, emitBookingChanged, emitClearanceUpdated, emitOps
 
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'devjamaviation@gmail.com'
 
-/** Payment reference the customer must put on the transfer. Stable per purchase. */
-export function blockTimeTransferReference(purchaseId: string): string {
-  return `BT-${purchaseId.replace(/-/g, '').slice(0, 8).toUpperCase()}`
+/**
+ * Payment reference the customer puts on the transfer:
+ *   "OZ-" + name (letters, max 8) + "-" + DDHHmm of the reservation (Sydney time)
+ * e.g. "OZ-JOHNSMIT-231934". The time stamp keeps it unique per purchase and it
+ * stays within 18 characters, the common bank description limit. Falls back to
+ * the purchase id when the customer has no usable name.
+ */
+export function blockTimeTransferReference(
+  fullName: string | null | undefined,
+  purchaseId: string,
+  purchasedAt?: string | Date | null,
+): string {
+  const namePart = (fullName ?? '')
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-zA-Z]/g, '')
+    .toUpperCase()
+    .slice(0, 8)
+
+  let stamp = ''
+  if (purchasedAt) {
+    const parts = new Intl.DateTimeFormat('en-AU', {
+      timeZone: 'Australia/Sydney',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hourCycle: 'h23',
+    }).formatToParts(new Date(purchasedAt))
+    const get = (t: string) => parts.find((p) => p.type === t)?.value ?? ''
+    stamp = `${get('day')}${get('hour')}${get('minute')}`
+  }
+  if (!stamp) stamp = purchaseId.replace(/-/g, '').slice(0, 6).toUpperCase()
+
+  if (namePart.length >= 2) return `OZ-${namePart}-${stamp}`
+  return `OZ-${purchaseId.replace(/-/g, '').slice(0, 8).toUpperCase()}`
 }
 
 function roundToCents(value: number) {

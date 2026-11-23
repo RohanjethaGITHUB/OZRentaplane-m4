@@ -56,7 +56,7 @@ export default async function AdminBlockTimePurchasesPage() {
     .from('block_time_bank_transfer_submissions')
     .select(`
       id, purchase_id, customer_id, status, submitted_at, reviewed_at,
-      purchase:pilot_block_time_purchases ( status, hours_purchased, amount_paid, package:block_time_packages ( name ) )
+      purchase:pilot_block_time_purchases ( status, hours_purchased, amount_paid, purchased_at, package:block_time_packages ( name ) )
     `)
     .order('submitted_at', { ascending: false })
     .limit(300)
@@ -83,6 +83,7 @@ export default async function AdminBlockTimePurchasesPage() {
       status: string
       hours_purchased: number
       amount_paid: number
+      purchased_at: string
       package: { name: string } | { name: string }[] | null
     } | null
     const customer = profileById.get(r.customer_id)
@@ -112,7 +113,7 @@ export default async function AdminBlockTimePurchasesPage() {
                 {one(purchase?.package as any)?.name ?? 'Block Time'} · {Number(purchase?.hours_purchased ?? 0)}h
               </span>
               <span className="rounded-md bg-[#f1f5f9] px-2 py-0.5 font-mono font-semibold text-[#334155]">
-                {blockTimeTransferReference(r.purchase_id)}
+                {blockTimeTransferReference(customer?.full_name, r.purchase_id, purchase?.purchased_at)}
               </span>
               <span className="text-[#94a3b8]">· {sydney(r.submitted_at)}</span>
             </div>

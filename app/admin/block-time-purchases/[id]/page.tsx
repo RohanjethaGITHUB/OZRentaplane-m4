@@ -109,7 +109,8 @@ export default async function AdminBlockTimePurchaseDetailPage({ params }: { par
   const firstReceipt = submissions[submissions.length - 1] ?? null
   const bonusHours = Number(firstReceipt?.promo_bonus_hours ?? 0)
   const freeCheckout = firstReceipt?.promo_free_checkout === true
-  const reference = blockTimeTransferReference(purchase.id)
+  // Show the reference the customer actually used if a receipt exists.
+  const reference = firstReceipt?.reference || blockTimeTransferReference(customer?.full_name, purchase.id, purchase.purchased_at)
   const hasPendingReview = submissions.some((s) => s.status === 'pending_review')
   const customerName = customer?.full_name || customer?.email || 'Customer'
   const pst = PURCHASE_STATUS[purchase.status] ?? { label: purchase.status, cls: 'border-slate-200 bg-slate-50 text-slate-600' }
