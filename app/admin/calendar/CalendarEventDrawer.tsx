@@ -3,6 +3,8 @@
 import Link from 'next/link'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { useRouter } from 'next/navigation'
+import { removeAdminScheduleBlock } from '@/app/actions/admin-booking'
 import { formatCalendarDateTime } from '@/lib/utils/calendar-format'
 import { formatLongDateFromDateKey } from './calendar-range'
 import type { AdminCalendarEvent } from './calendar-types'
@@ -62,8 +64,33 @@ export default function CalendarEventDrawer({
   const closeButtonRef = useRef<HTMLButtonElement | null>(null)
   const headingRef = useRef<HTMLHeadingElement | null>(null)
   const [mounted, setMounted] = useState(false)
+  const router = useRouter()
+  const [confirmRemove, setConfirmRemove] = useState(false)
+  const [removing, setRemoving] = useState(false)
+  const [removeError, setRemoveError] = useState<string | null>(null)
 
   useEffect(() => setMounted(true), [])
+
+  // Reset delete UI whenever a different event / mode is shown.
+  const stateKey = state ? (state.mode === 'event' ? state.event.eventId : `day:${state.dateKey}`) : null
+  useEffect(() => {
+    setConfirmRemove(false)
+    setRemoving(false)
+    setRemoveError(null)
+  }, [stateKey])
+
+  async function handleRemoveBlock(blockId: string) {
+    setRemoving(true)
+    setRemoveError(null)
+    try {
+      await removeAdminScheduleBlock(blockId)
+      onClose()
+      router.refresh()
+    } catch (err) {
+      setRemoveError(err instanceof Error ? err.message : 'Failed to remove block.')
+      setRemoving(false)
+    }
+  }
 
   useEffect(() => {
     if (!state) return
@@ -186,6 +213,13 @@ export default function CalendarEventDrawer({
 
     const primaryAction = actions[0] ?? null
     const secondaryActions = actions.slice(1)
+    // Only admin-created blocks (maintenance, grounded, etc.) can be removed here.
+    // Booking-owned blocks must be released by cancelling the booking.
+    const canRemoveBlock =
+      (event.eventType === 'maintenance' || event.eventType === 'blocked') &&
+      !event.relatedBookingId &&
+      event.blockStatus === 'active'
+    const removeLabel = event.eventType === 'maintenance' ? 'maintenance' : 'block'
 
     return (
       <>
@@ -266,6 +300,46 @@ export default function CalendarEventDrawer({
           </div>
         </div>
 
+        {canRemoveBlock ? (
+          <div className="border-t border-[rgba(12,35,64,0.08)] bg-white px-6 py-4">
+            {confirmRemove ? (
+              <div className="space-y-3">
+                <p className="text-[13px] text-[#152d5a]">
+                  Remove this {removeLabel}? The aircraft will become available to customers for this period again.
+                </p>
+                {removeError ? <p role="alert" className="text-[13px] font-medium text-[#b91c1c]">{removeError}</p> : null}
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    disabled={removing}
+                    onClick={() => handleRemoveBlock(event.sourceBlockId)}
+                    className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-[#dc2626] px-4 text-[13px] font-semibold text-white transition-colors hover:bg-[#b91c1c] disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#dc2626]/35 sm:flex-none"
+                  >
+                    {removing ? 'Removing…' : `Yes, remove ${removeLabel}`}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={removing}
+                    onClick={() => { setConfirmRemove(false); setRemoveError(null) }}
+                    className="inline-flex min-h-11 items-center justify-center rounded-xl border border-[rgba(12,35,64,0.12)] bg-white px-4 text-[13px] font-semibold text-[#152d5a] hover:bg-[#eef5ff] disabled:opacity-60"
+                  >
+                    Keep
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setConfirmRemove(true)}
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[#fecaca] bg-[#fef2f2] px-4 text-[13px] font-semibold text-[#b91c1c] transition-colors hover:bg-[#fee2e2] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#dc2626]/30"
+              >
+                <span className="material-symbols-outlined text-[17px]" aria-hidden="true">delete</span>
+                Delete {removeLabel}
+              </button>
+            )}
+          </div>
+        ) : null}
+
         {actions.length > 0 ? (
           <div className="border-t border-[rgba(12,35,64,0.08)] bg-[#f8fbff] px-6 py-4">
             <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
@@ -315,7 +389,7 @@ export default function CalendarEventDrawer({
         ) : null}
       </>
     )
-  }, [state, onOpenEvent])
+  }, [state, onOpenEvent, confirmRemove, removing, removeError])
 
   if (!state || !mounted) return null
 

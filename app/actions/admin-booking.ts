@@ -156,6 +156,62 @@ export async function createAdminScheduleBlock(
   return { created: true, blockId: result.blockId }
 }
 
+// ─── Remove admin schedule block ──────────────────────────────────────────────
+// Releases an admin-created block (maintenance, inspection, grounded, etc.) once it
+// is no longer needed so customers can book that period again.
+//
+// The row is soft-cancelled (status = 'cancelled') rather than deleted: every
+// availability query, RPC and the admin calendar only count status = 'active'
+// blocks, and keeping the row preserves history / FK references.
+//
+// Booking-owned blocks (customer_booking, buffer) are refused — those are released
+// through the booking cancel / complete flows.
+
+const ADMIN_REMOVABLE_BLOCK_TYPES = [
+  'maintenance', 'admin_unavailable', 'owner_use', 'inspection', 'cleaning',
+  'weather_hold', 'grounded', 'ferry', 'training_check', 'temporary_hold', 'other',
+] as const
+
+export async function removeAdminScheduleBlock(blockId: string): Promise<void> {
+  const { supabase } = await requireAdmin()
+
+  if (!blockId) throw new Error('VALIDATION: Missing block id.')
+
+  const { data: block, error: fetchErr } = await supabase
+    .from('schedule_blocks')
+    .select('id, aircraft_id, block_type, status')
+    .eq('id', blockId)
+    .maybeSingle()
+
+  if (fetchErr) throw new Error(fetchErr.message)
+  if (!block) throw new Error('This block no longer exists.')
+  if (block.status !== 'active') return // already released — idempotent
+
+  if (!(ADMIN_REMOVABLE_BLOCK_TYPES as readonly string[]).includes(block.block_type)) {
+    throw new Error('This event belongs to a booking. Cancel the booking instead of removing the block.')
+  }
+
+  const { data: updated, error: updateErr } = await supabase
+    .from('schedule_blocks')
+    .update({ status: 'cancelled', updated_at: new Date().toISOString() })
+    .eq('id', blockId)
+    .eq('status', 'active')
+    .select('id')
+
+  if (updateErr) {
+    console.error('[removeAdminScheduleBlock] update failed:', updateErr)
+    throw new Error(updateErr.message || 'Failed to remove block.')
+  }
+  if (!updated?.length) throw new Error('Failed to remove block (no permission or already changed).')
+
+  revalidatePath('/admin/calendar')
+  revalidatePath('/admin/aircraft')
+  revalidatePath('/admin/aircraft/availability')
+  revalidatePath('/dashboard/bookings')
+
+  void emitOpsChanged()
+}
+
 // ─── Approve post-flight review ───────────────────────────────────────────────
 // Admin approves a submitted flight record after the post-flight review.
 //
