@@ -113,7 +113,9 @@ export default async function AdminBlockTimePurchaseDetailPage({ params }: { par
   const reference = firstReceipt?.reference || blockTimeTransferReference(customer?.full_name, purchase.id, purchase.purchased_at)
   const hasPendingReview = submissions.some((s) => s.status === 'pending_review')
   const customerName = customer?.full_name || customer?.email || 'Customer'
-  const pst = PURCHASE_STATUS[purchase.status] ?? { label: purchase.status, cls: 'border-slate-200 bg-slate-50 text-slate-600' }
+  const pst = (purchase.status === 'pending' && hasPendingReview
+    ? { label: 'Needs review', cls: 'border-[#f0b429]/60 bg-[#fff7db] text-[#7a4100]' }
+    : PURCHASE_STATUS[purchase.status]) ?? { label: purchase.status, cls: 'border-slate-200 bg-slate-50 text-slate-600' }
 
   return (
     <>
@@ -205,14 +207,33 @@ export default async function AdminBlockTimePurchaseDetailPage({ params }: { par
                 </span>
                 <div className="min-w-0">
                   <p className="truncate text-[15px] font-semibold text-[#0f2747]">{customerName}</p>
-                  <p className="truncate text-[13px] text-[#64748b]">{customer?.email}</p>
+                  {customer?.email ? (
+                    <a
+                      href={`mailto:${customer.email}`}
+                      title={`Send email to ${customer.email}`}
+                      className="block truncate text-[13px] text-[#64748b] hover:text-[#1d4ed8] hover:underline"
+                    >
+                      {customer.email}
+                    </a>
+                  ) : null}
                 </div>
               </div>
               <dl className="divide-y divide-[#eef2f7]">
-                <Item
-                  label="Phone"
-                  value={customer?.phone_number ? `${customer.phone_country_code ?? ''} ${customer.phone_number}`.trim() : '—'}
-                />
+                <div className="flex items-start justify-between gap-4 py-2.5">
+                  <dt className="shrink-0 text-[13px] text-[#64748b]">Phone</dt>
+                  <dd className="min-w-0 break-words text-right text-[13.5px] font-semibold text-[#0f2747]">
+                    {customer?.phone_number ? (
+                      <a
+                        href={`tel:${`${customer.phone_country_code ?? ''}${customer.phone_number}`.replace(/[^\d+]/g, '')}`}
+                        title={`Call ${customerName}`}
+                        aria-label={`Call ${customerName} at ${customer.phone_country_code ?? ''} ${customer.phone_number}`}
+                        className="tabular-nums hover:text-[#1d4ed8] hover:underline"
+                      >
+                        {`${customer.phone_country_code ?? ''} ${customer.phone_number}`.trim()}
+                      </a>
+                    ) : '—'}
+                  </dd>
+                </div>
                 <Item label="Pilot ARN" value={customer?.pilot_arn || '—'} />
               </dl>
               <Link href={`/admin/users/${purchase.user_id}`} className="mt-3 inline-flex items-center gap-1 text-[13px] font-semibold text-[#1d4ed8] hover:underline">

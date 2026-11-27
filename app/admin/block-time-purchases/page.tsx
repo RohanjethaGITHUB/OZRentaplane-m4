@@ -63,8 +63,8 @@ export default async function AdminBlockTimePurchasesPage() {
 
   const customerIds = Array.from(new Set((rows ?? []).map((r) => r.customer_id)))
   const { data: profiles } = customerIds.length
-    ? await supabase.from('profiles').select('id, full_name, email').in('id', customerIds)
-    : { data: [] as { id: string; full_name: string | null; email: string | null }[] }
+    ? await supabase.from('profiles').select('id, full_name, email, phone_country_code, phone_number').in('id', customerIds)
+    : { data: [] as { id: string; full_name: string | null; email: string | null; phone_country_code: string | null; phone_number: string | null }[] }
   const profileById = new Map((profiles ?? []).map((p) => [p.id, p]))
 
   // One row per purchase: its latest submission.
@@ -91,23 +91,58 @@ export default async function AdminBlockTimePurchasesPage() {
     const st = STATUS[r.status] ?? { label: r.status, pill: 'border-slate-200 bg-slate-50 text-slate-600', dot: 'bg-slate-400', icon: 'help' }
     const urgent = r.status === 'pending_review'
 
+    const phoneDisplay = customer?.phone_number
+      ? `${customer.phone_country_code ?? ''} ${customer.phone_number}`.trim()
+      : ''
+    const callablePhone = customer?.phone_number
+      ? `${customer.phone_country_code ?? ''}${customer.phone_number}`.replace(/[^\d+]/g, '')
+      : ''
+
+    // Row is a div with a stretched overlay link so the email/phone links can be real
+    // <a> tags (nested anchors are invalid HTML).
     return (
-      <Link
+      <div
         key={r.purchase_id}
-        href={`/admin/block-time-purchases/${r.purchase_id}`}
         className={`group relative flex flex-col gap-4 overflow-hidden rounded-2xl border bg-white p-4 shadow-[0_8px_24px_rgba(15,30,52,0.05)] transition-all hover:-translate-y-0.5 hover:shadow-[0_14px_32px_rgba(15,30,52,0.10)] sm:flex-row sm:items-center sm:p-5 ${
           urgent ? 'border-[#f0b429]/60' : 'border-[#e2e8f0]'
         }`}
       >
+        <Link
+          href={`/admin/block-time-purchases/${r.purchase_id}`}
+          aria-label={`Review block time purchase for ${name}`}
+          className="absolute inset-0 z-0"
+        />
         {urgent ? <span className="absolute inset-y-0 left-0 w-1 bg-[#f59e0b]" /> : null}
 
-        <div className="flex min-w-0 flex-1 items-center gap-3.5">
+        <div className="pointer-events-none relative z-10 flex min-w-0 flex-1 items-center gap-3.5">
           <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#152d5a] text-sm font-bold text-white">
             {initials(name)}
           </span>
           <div className="min-w-0">
             <p className="truncate text-[15px] font-semibold text-[#0f2747]">{name}</p>
-            <p className="truncate text-[12.5px] text-[#64748b]">{customer?.email}</p>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[12.5px] text-[#64748b]">
+              {customer?.email ? (
+                <a
+                  href={`mailto:${customer.email}`}
+                  title={`Send email to ${customer.email}`}
+                  className="pointer-events-auto inline-flex min-w-0 items-center gap-1 hover:text-[#1d4ed8] hover:underline"
+                >
+                  <span className="material-symbols-outlined text-[#D97706]" style={{ fontSize: 14, lineHeight: 1 }}>mail</span>
+                  <span className="truncate">{customer.email}</span>
+                </a>
+              ) : null}
+              {callablePhone ? (
+                <a
+                  href={`tel:${callablePhone}`}
+                  title={`Call ${name}`}
+                  aria-label={`Call ${name} at ${phoneDisplay}`}
+                  className="pointer-events-auto inline-flex items-center gap-1 tabular-nums hover:text-[#1d4ed8] hover:underline"
+                >
+                  <span className="material-symbols-outlined text-[#0284C7]" style={{ fontSize: 14, lineHeight: 1 }}>call</span>
+                  {phoneDisplay}
+                </a>
+              ) : null}
+            </div>
             <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[11.5px]">
               <span className="rounded-md bg-[#f1f5f9] px-2 py-0.5 font-semibold text-[#334155]">
                 {one(purchase?.package as any)?.name ?? 'Block Time'} · {Number(purchase?.hours_purchased ?? 0)}h
@@ -120,7 +155,7 @@ export default async function AdminBlockTimePurchasesPage() {
           </div>
         </div>
 
-        <div className="flex items-center justify-between gap-4 border-t border-[#eef2f7] pt-3 sm:min-w-[260px] sm:justify-end sm:border-0 sm:pt-0">
+        <div className="pointer-events-none relative z-10 flex items-center justify-between gap-4 border-t border-[#eef2f7] pt-3 sm:min-w-[260px] sm:justify-end sm:border-0 sm:pt-0">
           <p className="text-xl font-bold tabular-nums text-[#0f2747]">{aud(Number(purchase?.amount_paid ?? 0))}</p>
           <span className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-3 py-1 text-[10px] font-bold uppercase tracking-[0.12em] ${st.pill}`}>
             <span className={`h-1.5 w-1.5 rounded-full ${st.dot}`} />
@@ -130,7 +165,7 @@ export default async function AdminBlockTimePurchasesPage() {
             chevron_right
           </span>
         </div>
-      </Link>
+      </div>
     )
   }
 
